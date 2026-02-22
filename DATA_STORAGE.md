@@ -640,7 +640,7 @@ GROUP BY es.hs_code, hc.description;
 ### Storage: `agreements_rag_store/`
 **Status**: ✅ Operational  
 **Created By**: `storage-scripts/agreements_ingest_enhanced.py`  
-**Searched By**: `storage-scripts/agreements_retriever.py` → `AgreementsAgent` in `langgraph_export_agent.py`
+**Searched By**: `storage-scripts/agreements_retriever.py` → `AgreementsAgent` in `agents/agreements_agent.py`
 
 ### Source Data
 ```
@@ -827,7 +827,7 @@ results = retriever.search(
 
 **Created By**: `storage-scripts/agreements_ingest_enhanced.py`  
 **Loaded By**: `storage-scripts/agreements_retriever.py`  
-**Used By**: `AgreementsAgent` in `langgraph_export_agent.py`
+**Used By**: `AgreementsAgent` in `agents/agreements_agent.py`
 
 ---
 
@@ -991,6 +991,20 @@ chapter_code: '07', note_type: 'export_licensing', sl_no: 1, note_text: '...'
 
 ---
 
+## 🤖 Agent → Storage Mapping
+
+Each agent in `agents/` reads from specific data stores:
+
+| Agent | File | Data Sources |
+|-------|------|--------------|
+| **QueryRouter** | `agents/router.py` | — (LLM-only, no data access) |
+| **SQLAgent** | `agents/sql_agent.py` | `export_statistics`, `monthly_export_statistics`, `v_monthly_exports`, `v_quarterly_exports`, `v_export_policy_unified`, `mv_hs_export_summary`, DB functions |
+| **PolicyAgent** | `agents/policy_agent.py` | `prohibited_items`, `restricted_items`, `ste_items`, `v_export_policy_unified` via `ExportDataIntegrator` |
+| **VectorAgent** | `agents/vector_agent.py` | `dgft_chroma_db/` (ChromaDB) |
+| **AgreementsAgent** | `agents/agreements_agent.py` | `agreements_rag_store/` (FAISS + ChromaDB + article index) via `AgreementsRetriever` |
+| **Combined** | `agents/graph.py` | Runs SQL + Policy + Agreements together; also directly queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies` |
+| **AnswerSynthesizer** | `agents/synthesizer.py` | — (combines results from other agents, LLM-only) |
+
 ## 🔍 Query Examples
 
 ### Get HS Code with All Policy Info (Including References)
@@ -1106,5 +1120,5 @@ Key endpoints:
 
 ---
 
-**Last Updated**: February 22, 2026  
-**Database Schema Version**: 3.0 (Monthly trade statistics added)
+**Last Updated**: February 23, 2026  
+**Database Schema Version**: 4.0 (Modular agent refactoring, agents/ package)

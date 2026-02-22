@@ -88,10 +88,28 @@ This system provides intelligent export advisory services by integrating:
 ```
 POCs/
 ├── app.py                         # FastAPI backend with all API endpoints
-├── config.py                      # Centralized configuration
-├── langgraph_export_agent.py      # LangGraph multi-agent system (6 agents + memory)
+├── config.py                      # Centralized configuration (DB, LLM, paths)
+├── langgraph_export_agent.py      # Backward-compat shim → re-exports from agents/
 ├── export_data_integrator.py      # Unified data access layer
 ├── requirements.txt               # Python dependencies
+│
+├── agents/                        # Multi-agent system (modular package)
+│   ├── __init__.py               # Re-exports all public symbols
+│   ├── state.py                  # AgentState TypedDict (shared across agents)
+│   ├── router.py                 # QueryRouter — LLM query classification
+│   ├── sql_agent.py              # SQLAgent — text-to-SQL with conversation context
+│   ├── policy_agent.py           # PolicyAgent — export restriction checks
+│   ├── vector_agent.py           # VectorAgent — DGFT policy vector search
+│   ├── agreements_agent.py       # AgreementsAgent — trade agreement search + cross-refs
+│   ├── synthesizer.py            # AnswerSynthesizer — combines agent results
+│   └── graph.py                  # ExportAdvisoryGraph orchestrator + demo
+│
+├── prompts/                       # LLM prompts (separated for easy editing)
+│   ├── __init__.py
+│   ├── router_prompt.py          # Query routing classification prompt
+│   ├── sql_schema.py             # Database schema context (tables, views, functions)
+│   ├── sql_prompt.py             # SQL generation system prompt
+│   └── synthesizer_prompt.py     # Answer synthesis system prompt
 │
 ├── static/                        # Web UI frontend
 │   ├── index.html                # Main page (dark theme)
@@ -126,10 +144,9 @@ POCs/
 │
 ├── dgft_chroma_db/                # DGFT policies vector store
 │
-├── test_agreement_queries.py      # 13 test queries for agreement integration
+├── test_agreement_queries.py      # 19 test queries (agreements, SQL, policy, monthly)
 ├── DATA_STORAGE.md                # Data architecture documentation
 ├── LANGGRAPH_GUIDE.md             # LangGraph system documentation
-├── TEST_QUERIES.md                # 46 test queries across 10 categories
 └── README.md                      # This file
 ```
 
@@ -206,9 +223,9 @@ Open your browser to:
 - **Frontend**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
-### 5. Test Programmatically
+### 6. Test Programmatically
 ```python
-from langgraph_export_agent import ExportAdvisoryGraph
+from agents import ExportAdvisoryGraph  # or: from langgraph_export_agent import ...
 
 # Initialize agent
 graph = ExportAdvisoryGraph()
@@ -459,16 +476,19 @@ COUNTRY_CODES = {
 ## 📞 System Status
 
 ### ✅ Operational Components
+- **Modular agent package** (`agents/`) — one class per agent, clean separation of concerns
+- **Prompt management** (`prompts/`) — all LLM prompts in editable Python files
+- **Backward-compat shim** (`langgraph_export_agent.py`) — re-exports from `agents/`
 - PostgreSQL database with unified views
 - Policy references system (57 codes)
 - Export data integrator with prefix matching
 - LangGraph multi-agent system with conversation memory (6 agents)
-- SQL Agent (text-to-SQL with schema context + history)
-- Policy Agent (export feasibility checks with prefix matching)
-- **Agreements Agent** (trade agreement search with article-level precision + cross-ref resolution)
-- Vector Agent (DGFT policies)
-- Combined Agent (SQL + Policy + Agreements for complex queries)
-- Answer Synthesizer (markdown output + source attribution + agreement article citations)
+- SQL Agent (text-to-SQL with schema context + history) — `agents/sql_agent.py`
+- Policy Agent (export feasibility checks with prefix matching) — `agents/policy_agent.py`
+- Agreements Agent (trade agreement search + cross-ref resolution) — `agents/agreements_agent.py`
+- Vector Agent (DGFT policies) — `agents/vector_agent.py`
+- Combined Agent (SQL + Policy + Agreements for complex queries) — `agents/graph.py`
+- Answer Synthesizer (markdown output + source attribution) — `agents/synthesizer.py`
 - FastAPI backend with full REST API
 - Premium dark-theme web UI with Chart.js visualizations
 - Trade agreements RAG store (2,524 chunks, 885 articles, FAISS + ChromaDB)
@@ -507,9 +527,8 @@ netstat -ano | findstr :8000
 ## 📚 Documentation
 
 - **[DATA_STORAGE.md](DATA_STORAGE.md)**: Complete data architecture documentation (includes agreements storage)
-- **[LANGGRAPH_GUIDE.md](LANGGRAPH_GUIDE.md)**: Detailed LangGraph system architecture (6 agents)
-- **[TEST_QUERIES.md](TEST_QUERIES.md)**: 46 test queries across 10 categories
-- **[test_agreement_queries.py](test_agreement_queries.py)**: 13 agreement-specific test queries
+- **[LANGGRAPH_GUIDE.md](LANGGRAPH_GUIDE.md)**: Detailed LangGraph system architecture, modular agents, prompt management
+- **[test_agreement_queries.py](test_agreement_queries.py)**: 19 test queries (agreements, SQL, policy, monthly data)
 
 ## 📄 License
 
@@ -521,6 +540,6 @@ Developed as part of PPL+AI internship assignment.
 
 ---
 
-**Last Updated**: February 16, 2026  
-**System Version**: 3.0  
-**Status**: ✅ Fully Operational (6 agents, Agreements RAG live, FastAPI + Web UI, Memory enabled)
+**Last Updated**: February 23, 2026  
+**System Version**: 4.0 (Modular refactoring)  
+**Status**: ✅ Fully Operational (modular agents/ package, 6 agents, Agreements RAG live, FastAPI + Web UI, Memory enabled)

@@ -105,7 +105,47 @@ TEST_QUERIES = [
     },
 
     # ─────────────────────────────────────────────────────────────
-    # GROUP 5: CROSS-REFERENCE TESTS
+    # GROUP 5: MONTHLY DATA QUERIES (should route to → sql)
+    # ─────────────────────────────────────────────────────────────
+    {
+        "query": "What were the monthly exports of HS 610910 to UAE in 2024?",
+        "expected_route": "sql",
+        "description": "Tests month-by-month export data retrieval from monthly_export_statistics",
+        "should_mention": ["610910", "UAE"],
+    },
+    {
+        "query": "Which month had the highest exports for chapter 85 to Australia?",
+        "expected_route": "sql",
+        "description": "Tests best-month aggregation query on monthly data",
+        "should_mention": ["85", "Australia"],
+    },
+    {
+        "query": "Show quarterly export trend for textiles to UK in 2024",
+        "expected_route": "sql",
+        "description": "Tests quarterly aggregation from monthly_export_statistics",
+        "should_mention": ["textile", "UK"],
+    },
+    {
+        "query": "What is the seasonal pattern for vegetable exports to UAE?",
+        "expected_route": "sql",
+        "description": "Tests seasonal/monthly pattern query for agriculture products",
+        "should_mention": ["vegetable", "UAE"],
+    },
+    {
+        "query": "Compare month-over-month growth for HS 850440 exports to all countries",
+        "expected_route": "sql",
+        "description": "Tests monthly growth percentage query across countries",
+        "should_mention": ["850440", "growth"],
+    },
+    {
+        "query": "What were the total YTD exports for chapter 61 to Australia vs UAE in 2024?",
+        "expected_route": "sql",
+        "description": "Tests year-to-date comparison across countries from monthly data",
+        "should_mention": ["61"],
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # GROUP 6: CROSS-REFERENCE TESTS
     # ─────────────────────────────────────────────────────────────
     {
         "query": "What does Article 4.3 of the India-Australia agreement say about goods not wholly produced?",

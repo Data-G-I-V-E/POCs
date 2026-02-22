@@ -17,8 +17,9 @@ from typing import Optional, List, Dict, Any
 import uvicorn
 from datetime import datetime
 import traceback
+import psycopg2
 
-from langgraph_export_agent import ExportAdvisoryGraph
+from agents import ExportAdvisoryGraph
 from export_data_integrator import ExportDataIntegrator
 from config import Config
 
@@ -176,10 +177,6 @@ async def get_trade_data(request: TradeDataRequest):
         raise HTTPException(status_code=503, detail="Integrator not initialized")
     
     try:
-        # Query trade data from database
-        import psycopg2
-        from config import Config
-        
         conn = psycopg2.connect(**Config.DB_CONFIG)
         cursor = conn.cursor()
         
