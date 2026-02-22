@@ -1,0 +1,75 @@
+Source country: 
+1. India
+
+Type:
+1. Exports
+
+Timeline:
+2024-2025
+
+Destination Countries:
+1. Australia
+2. UAE
+3. UK
+
+HS Codes:
+1. Agriculture
+    07 -> Edible vegetables and certain roots and tubers 
+    08 -> Edible fruit and nuts; peel of citrus fruit or melons
+
+2. Textile and apparel
+    61 –> Articles of apparel and clothing accessories, knitted or crocheted
+    62 –> Articles of apparel and clothing accessories,  not knitted or crocheted
+
+3. Electronics
+    85 –> Electrical machinery and equipment and parts thereof; sound recorders and reproducers, television image and sound recorders and reproducers, and parts and accessories of such articles
+
+3. Instruments
+    90 -> Optical, photographic, cinematographic, measuring, checking, precision, medical or surgical instruments and apparatus; parts and accessories thereof.
+
+HS chapters: 07, 08, 61, 62, 84, 85 , 90
+HS depth: HS-6 only (derive HS-2 / HS-4 automatically)  
+1. CH-7 chosen hs codes
+    070310
+    070700
+    070960
+
+2. CH-8 chosen hs codes
+    080310 
+    080410
+    080450 
+
+3. CH-61 chosen hs codes
+    610910
+    610342
+    610442
+
+4. CH-62 chosen hs codes 
+    620342 
+    620462
+    620520
+
+5. CH-85 chosen hs codes
+    850440
+    851310
+    851762
+
+6. CH-90 chosen hs codes
+    902610
+
+Data Sources:
+1. HS Master Data:  
+    WCO HS Nomenclature (2022 Edition)
+2. Trade data: 
+    dgft tradestat
+3. Export Policy Data:
+    DGFT FTP 2023–28
+    ITC(HS) 2022 notifcations
+4. Tariff & Duty Data:
+    For India and destination countries 
+5. Trade Agreements:
+     Ministry of commerce and industry international trade agreements
+6. Restricted and Prohibited items:
+    DGFT website 
+7. Monthly export data for 2024-2025
+    DGFT Website

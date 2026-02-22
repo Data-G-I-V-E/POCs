@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Advisory System — AI-Powered Trade Intelligence</title>
+    <meta name="description" content="AI-powered multi-agent export advisory system for India trade data, HS codes, restrictions, and trade agreements.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" id="app-header">
+        <div class="header-inner">
+            <div class="header-left">
+                <h1>🌍 Export Advisory System</h1>
+                <p class="subtitle">AI-Powered Multi-Agent Trade Intelligence</p>
+            </div>
+            <div class="header-right">
+                <div class="session-info">
+                    <span id="session-display" class="session-badge">Session: default</span>
+                    <button id="new-session-btn" class="btn btn-glass" title="Start new session">
+                        <span>✨</span> New
+                    </button>
+                    <button id="clear-session-btn" class="btn btn-glass btn-glass-danger" title="Clear chat history">
+                        <span>🗑️</span> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Chat Section -->
+        <section class="chat-section" id="chat-section">
+            <div class="chat-container">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="welcome-message" id="welcome-message">
+                        <div class="welcome-icon">🚀</div>
+                        <h3>Welcome to Export Advisory!</h3>
+                        <p class="welcome-sub">I'm your AI-powered trade intelligence assistant. I can help you with:</p>
+                        <div class="welcome-features">
+                            <div class="feature-card">
+                                <span class="feature-icon">📊</span>
+                                <span>Export statistics & trade data</span>
+                            </div>
+                            <div class="feature-card">
+                                <span class="feature-icon">✅</span>
+                                <span>Export eligibility checks</span>
+                            </div>
+                            <div class="feature-card">
+                                <span class="feature-icon">📋</span>
+                                <span>Trade agreements & tariffs</span>
+                            </div>
+                            <div class="feature-card">
+                                <span class="feature-icon">⚠️</span>
+                                <span>Restrictions & regulations</span>
+                            </div>
+                        </div>
+                        <p class="try-asking"><strong>Try asking:</strong></p>
+                        <ul class="example-queries">
+                            <li data-query="What are the export statistics for chapter 07 to Australia?">📊 "What are the export statistics for chapter 07 to Australia?"</li>
+                            <li data-query="Can I export HS 070310 to UAE?">✅ "Can I export HS 070310 to UAE?"</li>
+                            <li data-query="Are there any restrictions on electronic cigarettes?">⚠️ "Are there any restrictions on electronic cigarettes?"</li>
+                            <li data-query="What are the prohibited export items?">❌ "What are the prohibited export items?"</li>
+                            <li data-query="Show me trade data for HS 610910">📈 "Show me trade data for HS 610910"</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="user-input" 
+                            class="chat-input" 
+                            placeholder="Ask about exports, trade data, policies, or regulations..."
+                            rows="1"
+                        ></textarea>
+                        <button id="send-btn" class="btn btn-send" aria-label="Send message">
+                            <span class="send-text">Send</span>
+                            <span class="send-icon">➤</span>
+                            <span class="loading-spinner" style="display: none;">
+                                <span class="spinner-dot"></span>
+                                <span class="spinner-dot"></span>
+                                <span class="spinner-dot"></span>
+                            </span>
+                        </button>
+                    </div>
+                    <p class="input-hint">Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visualization Section (shown inline below chat when data is available) -->
+        <section class="viz-section" id="viz-section" style="display: none;">
+            <div class="viz-header">
+                <h3>📊 Trade Data Visualization</h3>
+                <div class="viz-actions">
+                    <button id="close-viz-btn" class="btn btn-glass btn-sm" title="Close visualization">✕</button>
+                </div>
+            </div>
+            <div class="viz-body">
+                <div class="chart-wrapper" id="chart-container">
+                    <canvas id="trade-chart"></canvas>
+                    <div class="chart-placeholder" id="chart-placeholder">
+                        <p>📈 Ask about trade statistics to see visualizations here</p>
+                        <p class="chart-hint">Example: "Show export data for HS 070310"</p>
+                    </div>
+                </div>
+                <div id="chart-info" class="chart-info" style="display: none;">
+                    <h4>📋 Data Details</h4>
+                    <div id="chart-details"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Powered by <strong>LangGraph Multi-Agent System</strong> &bull; Data: ITC HS, DGFT, Trade Agreements &bull; India Export Intelligence</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
