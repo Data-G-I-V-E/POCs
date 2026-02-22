@@ -51,6 +51,13 @@ class Config:
     # Embedding Model
     EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
     
+    # LLM Configuration
+    LLM_MODEL = os.getenv('LLM_MODEL', 'gemini-2.5-flash')
+    LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', '0.1'))
+    
+    # Agreements RAG Store Path
+    AGREEMENTS_RAG_STORE_PATH = ROOT_DIR / 'agreements_rag_store'
+    
     # Focus HS Codes (6-digit codes you're targeting)
     FOCUS_HS_CODES = [
         # Agriculture
@@ -74,7 +81,7 @@ class Config:
     COUNTRY_CODES = {
         'australia': 'AUS',
         'uae': 'UAE',
-        'uk': 'UK',
+        'uk': 'GBR',
     }
     
     # Chapter descriptions

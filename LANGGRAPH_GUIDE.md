@@ -55,13 +55,14 @@ A sophisticated multi-agent system using **LangGraph** that intelligently routes
 
 ## 🎯 Agents
 
-### 1. **Query Router**
+### 1. **Query Router** (`agents/router.py`)
 - Analyzes user intent
 - Extracts entities (HS codes, countries)
 - Routes to appropriate specialist agents
 - Powered by Gemini 2.5 Flash
+- Prompt defined in `prompts/router_prompt.py`
 
-### 2. **SQL Agent** (Text-to-SQL)
+### 2. **SQL Agent** (`agents/sql_agent.py`) — Text-to-SQL
 Handles queries requiring database operations:
 - Export statistics and trade data (annual + monthly)
 - Monthly trends, seasonal patterns, quarter comparisons
@@ -78,7 +79,9 @@ Handles queries requiring database operations:
 - "Show quarterly export trend for textiles to UK"
 
 **Data Sources:**
-- `v_export_policy_unified`
+- Unified SQL views (`v_export_policy_unified`, `v_monthly_exports`)
+- Schema context from `prompts/sql_schema.py`
+- SQL generation prompt from `prompts/sql_prompt.py`
 - `export_statistics` (annual data)
 - `monthly_export_statistics` (monthly 2024 data)
 - `v_monthly_exports` (monthly with names)
@@ -86,7 +89,7 @@ Handles queries requiring database operations:
 - `mv_hs_export_summary`
 - Database functions
 
-### 3. **Policy Agent**
+### 3. **Policy Agent** (`agents/policy_agent.py`)
 Checks export feasibility and restrictions:
 - Prohibited items
 - Restricted items
@@ -105,7 +108,7 @@ Checks export feasibility and restrictions:
 - `restricted_items`
 - `ste_items`
 
-### 4. **Vector Agent**
+### 4. **Vector Agent** (`agents/vector_agent.py`)
 Semantic search across DGFT policy documents:
 - Foreign Trade Policy
 - DGFT notifications
@@ -118,7 +121,7 @@ Semantic search across DGFT policy documents:
 **Data Sources:**
 - ChromaDB (`dgft_chroma_db/`)
 
-### 5. **Agreements Agent** (NEW)
+### 5. **Agreements Agent** (`agents/agreements_agent.py`) (NEW)
 Searches trade agreement PDFs with article-level precision and cross-reference resolution:
 - Rules of origin (Chapter 4 of most FTAs)
 - Tariff commitments and duty elimination schedules
@@ -150,7 +153,7 @@ Searches trade agreement PDFs with article-level precision and cross-reference r
 - India-UAE CEPA: 751 chunks, 249 articles
 - India-UK CETA: 1,196 chunks, 449 articles
 
-### 6. **Combined Agent** (Multi-Agent Execution)
+### 6. **Combined Agent** (`agents/graph.py` → `_combined_execute` method)
 Handles complex queries requiring BOTH data aggregation AND policy checks AND agreement lookup:
 - Runs SQL Agent first for data/statistics
 - Then runs Policy Agent for chapter-level restriction checks
@@ -170,12 +173,13 @@ Handles complex queries requiring BOTH data aggregation AND policy checks AND ag
 - Agreements Agent searches FTA text but has no export statistics or policy data
 - Combined runs all three, giving the synthesizer a complete picture
 
-### 7. **Answer Synthesizer**
+### 7. **Answer Synthesizer** (`agents/synthesizer.py`)
 - Combines results from all agents
 - Generates coherent response with markdown formatting
 - Cites specific trade agreement articles (e.g., "Article 4.3 of AI-ECTA")
 - Provides source citations
 - Uses conversation history for context
+- Prompt defined in `prompts/synthesizer_prompt.py`
 
 ## 🚀 Usage
 
@@ -201,7 +205,7 @@ GOOGLE_API_KEY=your_api_key_here
 ### Basic Usage
 
 ```python
-from langgraph_export_agent import ExportAdvisoryGraph
+from agents import ExportAdvisoryGraph
 
 # Initialize
 graph = ExportAdvisoryGraph()
@@ -216,13 +220,26 @@ print(graph.format_response(result))
 ### Interactive Mode
 
 ```bash
-python langgraph_export_agent.py
+python -m agents.graph
 ```
 
 ### Quick Test
 
 ```bash
-python test_langgraph_agent.py
+python test_agreement_queries.py --quick
+```
+
+## 📦 Code Structure
+
+The system is organized into two packages:
+
+- **`agents/`** — One file per agent, plus `state.py` (shared `AgentState`) and `graph.py` (orchestrator)
+- **`prompts/`** — All LLM prompts as editable Python string constants
+
+Import from either path:
+```python
+from agents import ExportAdvisoryGraph          # Preferred
+from langgraph_export_agent import ExportAdvisoryGraph  # Backward compat
 ```
 
 ## 📊 Example Queries
@@ -484,6 +501,8 @@ python storage-scripts/agreements_ingest_enhanced.py
 ### Custom Agent
 
 ```python
+from agents.state import AgentState
+
 class CustomAgent:
     def execute(self, state: AgentState) -> AgentState:
         # Your logic here
@@ -491,13 +510,17 @@ class CustomAgent:
         state["next_agent"] = "synthesizer"
         return state
 
-# Add to graph
-graph.workflow.add_node("custom", custom_agent.execute)
+# Add to graph in agents/graph.py:
+# workflow.add_node("custom", custom_agent.execute)
 ```
 
 ### Modify Routing Logic
 
-Edit `QueryRouter.route()` method in `langgraph_export_agent.py`
+Edit `agents/router.py` (the `QueryRouter.route()` method) or update the prompt in `prompts/router_prompt.py`.
+
+### Modify SQL Generation
+
+Edit `prompts/sql_schema.py` to update the database schema context, or edit `prompts/sql_prompt.py` to change how SQL is generated.
 
 ### Add New Data Sources
 
@@ -518,7 +541,7 @@ class ExportAdvisoryGraph:
     def get_session_message_count(self, session_id: str = "default") -> int
 ```
 
-### AgentState
+### `AgentState` (defined in `agents/state.py`)
 
 ```python
 class AgentState(TypedDict):
@@ -538,14 +561,15 @@ class AgentState(TypedDict):
 
 ## 🎯 Next Steps
 
-1. **Test the system**: `python test_langgraph_agent.py`
-2. **Test agreements**: `python test_agreement_queries.py --quick`
-3. **Try interactive mode**: `python langgraph_export_agent.py`
-4. **Run the web app**: `python app.py` → http://localhost:8000
-5. **Test memory**: Use multi-turn conversations (see TEST_QUERIES.md Category 4)
-6. **Customize agents** for your specific needs
-7. **Add more data sources** as needed
+1. **Test the system**: `python test_agreement_queries.py --quick`
+2. **Try interactive mode**: `python -m agents.graph`
+3. **Run the web app**: `python app.py` → http://localhost:8000
+4. **Test memory**: Use multi-turn conversations in the web UI
+5. **Customize agents** — edit files in `agents/` and `prompts/`
+6. **Add more data sources** by extending `export_data_integrator.py`
 
 ---
 
-**Built with LangGraph, LangChain, Google Gemini, FAISS, ChromaDB, and FastAPI** 🚀
+**Built with LangGraph, LangChain, Google Gemini, FAISS, ChromaDB, and FastAPI** 🚀  
+**Last Updated**: February 23, 2026  
+**Version**: 4.0 (Modular refactoring)
