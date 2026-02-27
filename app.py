@@ -445,5 +445,10 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
+        reload_excludes=[
+            "*.md", "*.json", "*.csv", "*.xlsx", "*.pdf",
+            "data/*", "agreements_rag_store/*", "dgft_ftp_rag_store/*",
+            "dgft_chroma_db/*", ".gemini/*", "__pycache__/*",
+        ],
         log_level="info"
     )
