@@ -50,7 +50,7 @@ class PolicyAgent:
                 "type": "policy_check",
                 "hs_code": hs_code,
                 "country": country,
-                "tables": ["v_export_policy_unified", "prohibited_items", "restricted_items", "ste_items"],
+                "tables": ["v_export_policy_unified", "prohibited_items", "restricted_items", "ste_items", "itc_chapter_notes"],
                 "timestamp": datetime.now().isoformat()
             })
             

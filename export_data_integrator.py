@@ -117,6 +117,11 @@ class ExportDataIntegrator:
         if ste:
             result['ste_info'] = ste
         
+        # 6. Get chapter notes (main notes, export licensing)
+        chapter_notes = self._get_chapter_notes(hs_code)
+        if chapter_notes:
+            result['chapter_notes'] = chapter_notes
+        
         return result
     
     def _get_hs_code_basic(self, hs_code: str) -> Optional[Dict]:
@@ -303,6 +308,55 @@ class ExportDataIntegrator:
         
         return None
     
+    def _get_chapter_notes(self, hs_code: str) -> Optional[Dict]:
+        """Get chapter notes (main notes, policy conditions, export licensing) for the HS code's chapter"""
+        chapter_code = hs_code[:2]
+        query = """
+            SELECT note_type, sl_no, note_text
+            FROM itc_chapter_notes
+            WHERE chapter_code = %s
+            ORDER BY note_type, sl_no
+        """
+        try:
+            self.cursor.execute(query, (chapter_code,))
+            rows = self.cursor.fetchall()
+            if not rows:
+                return None
+            
+            notes = {'chapter_code': chapter_code, 'main_notes': [], 'policy_conditions': [], 'export_licensing': []}
+            
+            # Also get chapter name
+            try:
+                self.cursor.execute(
+                    "SELECT chapter_name FROM itc_chapters WHERE chapter_code = %s",
+                    (chapter_code,)
+                )
+                ch_row = self.cursor.fetchone()
+                if ch_row:
+                    notes['chapter_name'] = ch_row[0] if isinstance(ch_row, tuple) else ch_row.get('chapter_name', '')
+            except Exception:
+                pass
+            
+            for row in rows:
+                if isinstance(row, dict):
+                    note_type = row.get('note_type', '')
+                    note_text = row.get('note_text', '')
+                else:
+                    note_type, _, note_text = row[0], row[1], row[2]
+                
+                if note_type == 'main_note':
+                    notes['main_notes'].append(note_text)
+                elif note_type == 'policy_condition':
+                    notes['policy_conditions'].append(note_text)
+                elif note_type == 'export_licensing':
+                    notes['export_licensing'].append(note_text)
+            
+            notes['total_notes'] = len(rows)
+            return notes
+        except Exception as e:
+            logger.debug(f"Error getting chapter notes for {chapter_code}: {e}")
+            return None
+    
     # ========== COUNTRY-SPECIFIC QUERIES ==========
     
     def get_export_statistics(
@@ -443,9 +497,20 @@ class ExportDataIntegrator:
         # 4. Check STE
         if hs_info.get('is_ste'):
             ste_info = hs_info['ste_info']
-            result['requirements'].append(
-                f"STE (State Trading): Export only through {ste_info.get('authorized_entity', 'designated entity')}"
-            )
+            entity = ste_info.get('authorized_entity')
+            condition = ste_info.get('policy_condition', '')
+            if entity:
+                result['requirements'].append(
+                    f"STE (State Trading): Export only through {entity}"
+                )
+            elif condition:
+                result['requirements'].append(
+                    f"STE (State Trading): {condition}"
+                )
+            else:
+                result['requirements'].append(
+                    "STE (State Trading): Canalized through designated State Trading Enterprise"
+                )
         
         # 5. Get export statistics
         stats = self.get_export_statistics(hs_code, country)
