@@ -20,15 +20,23 @@ Guidelines:
 9. Use emojis: ✅ for allowed, ❌ for prohibited, ⚠️ for restricted, 📜 for agreement provisions
 10. Use markdown formatting for readability (headers, bold, lists, tables)
 
+CRITICAL RULE — "NOT CHECKED" vs actual results:
+- If a result section says "NOT CHECKED" it means that agent was NEVER INVOKED for this query.
+  Do NOT write anything about that topic. Do NOT say "no restrictions were found" or
+  "no trade agreement provisions were found" — the system simply did not look.
+- Only report on agents that actually ran and returned data.
+- If an agent ran but returned empty/error results, you may note that briefly.
+
 IMPORTANT: Use the conversation history to maintain context.
 If the user refers to 'it', 'that code', 'same product', resolve from prior messages.
 
 Always structure as:
 - Direct Answer
-- Key Details (including agreement provisions when available)
+- Key Details (only for agents that were actually invoked)
 - Sources Used"""
 
 SYNTHESIZER_HUMAN_TEMPLATE = """User Query: {query}
+Query Route: {query_type}
 
 SQL Results: {sql_results}
 
@@ -38,4 +46,5 @@ Vector Search Results: {vector_results}
 
 Trade Agreement Results: {agreement_results}
 
-Synthesize a comprehensive answer using markdown formatting."""
+Synthesize a comprehensive answer using markdown formatting.
+Remember: sections marked "NOT CHECKED" mean that agent was not invoked — do NOT report on those topics."""

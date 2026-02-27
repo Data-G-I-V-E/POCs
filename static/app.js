@@ -6,6 +6,7 @@
 const API_BASE = window.location.origin;
 let currentSessionId = localStorage.getItem('export_session_id') || 'default';
 let tradeChart = null;
+let monthlyChart = null;
 
 // === DOM ELEMENTS ===
 const chatMessages = document.getElementById('chat-messages');
@@ -172,6 +173,21 @@ async function clearSession(sessionId) {
 
 async function getTradeData(hsCode = null, chapter = null) {
     const response = await fetch(`${API_BASE}/api/trade-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            hs_code: hsCode,
+            chapter: chapter,
+            countries: ['australia', 'uae', 'uk']
+        })
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return await response.json();
+}
+
+async function getMonthlyTradeData(hsCode = null, chapter = null) {
+    const response = await fetch(`${API_BASE}/api/monthly-trade-data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -407,13 +423,6 @@ async function updateVisualization(response) {
             return;
         }
 
-        const data = await getTradeData(hsCode);
-
-        if (!data.data || data.data.length === 0) {
-            console.log('No trade data available for visualization');
-            return;
-        }
-
         // Show visualization section
         const vizSection = document.getElementById('viz-section');
         if (vizSection) {
@@ -427,19 +436,47 @@ async function updateVisualization(response) {
         // Show chart info
         chartInfo.style.display = 'block';
 
-        // Create data table
-        const tableHtml = createDataTable(data.data, hsCode);
-        chartDetails.innerHTML = `
-            <p><strong>HS Code:</strong> ${hsCode}</p>
-            <p style="margin-bottom:0.5rem;"><strong>Export Data by Country:</strong></p>
-            ${tableHtml}
-            <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                Last Updated: ${new Date(data.timestamp).toLocaleString()}
-            </p>
-        `;
+        // Try monthly data first
+        let hasMonthly = false;
+        try {
+            const monthlyData = await getMonthlyTradeData(hsCode);
+            if (monthlyData.months && monthlyData.months.length > 0 &&
+                Object.keys(monthlyData.monthly_data).length > 0) {
+                hasMonthly = true;
+                // Create monthly table + line chart
+                const tableHtml = createMonthlyDataTable(monthlyData, hsCode);
+                chartDetails.innerHTML = `
+                    <p><strong>HS Code:</strong> ${hsCode}</p>
+                    <p style="margin-bottom:0.5rem;"><strong>Monthly Export Trend (2024):</strong></p>
+                    ${tableHtml}
+                    <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+                        Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
+                    </p>
+                `;
+                createLineChart(monthlyData, hsCode);
+            }
+        } catch (err) {
+            console.log('Monthly data not available, falling back to annual:', err.message);
+        }
 
-        // Create chart
-        createBarChart(data.data, hsCode);
+        // Fallback to annual bar chart if no monthly data
+        if (!hasMonthly) {
+            const data = await getTradeData(hsCode);
+            if (!data.data || data.data.length === 0) {
+                console.log('No trade data available for visualization');
+                return;
+            }
+            const tableHtml = createDataTable(data.data, hsCode);
+            chartDetails.innerHTML = `
+                <p><strong>HS Code:</strong> ${hsCode}</p>
+                <p style="margin-bottom:0.5rem;"><strong>Export Data by Country (Annual):</strong></p>
+                ${tableHtml}
+                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+                    Last Updated: ${new Date(data.timestamp).toLocaleString()}
+                </p>
+            `;
+            createBarChart(data.data, hsCode);
+        }
 
         // Scroll to visualization
         vizSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -474,6 +511,46 @@ function createDataTable(data, hsCode) {
         <td style="text-align:right;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         <td style="text-align:right;">100%</td>
     </tr></tfoot></table>`;
+
+    return html;
+}
+
+function createMonthlyDataTable(monthlyData, hsCode) {
+    const countries = Object.keys(monthlyData.monthly_data);
+    const months = monthlyData.months;
+    if (countries.length === 0 || months.length === 0) return '<p>No monthly data available</p>';
+
+    let html = `<table class="data-table"><thead><tr>
+        <th>Month</th>`;
+    countries.forEach(c => {
+        html += `<th style="text-align:right;">${c} (₹ Cr)</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    months.forEach(monthName => {
+        html += `<tr><td style="font-weight:500;">${monthName}</td>`;
+        countries.forEach(country => {
+            const entry = monthlyData.monthly_data[country].find(m => m.month_name === monthName);
+            const val = entry ? entry.value : 0;
+            const growth = entry && entry.growth_pct !== null ? entry.growth_pct : null;
+            let growthBadge = '';
+            if (growth !== null) {
+                const color = growth >= 0 ? '#10b981' : '#ef4444';
+                const arrow = growth >= 0 ? '▲' : '▼';
+                growthBadge = ` <span style="font-size:0.75rem;color:${color};">${arrow}${Math.abs(growth).toFixed(1)}%</span>`;
+            }
+            html += `<td style="text-align:right;">₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${growthBadge}</td>`;
+        });
+        html += `</tr>`;
+    });
+
+    // Totals row
+    html += `<tr style="font-weight:600;border-top:2px solid var(--border);"><td>Total</td>`;
+    countries.forEach(country => {
+        const total = monthlyData.monthly_data[country].reduce((s, m) => s + m.value, 0);
+        html += `<td style="text-align:right;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+    });
+    html += `</tr></tbody></table>`;
 
     return html;
 }
@@ -581,6 +658,133 @@ function createBarChart(data, hsCode) {
             }
         }
     });
+}
+
+function createLineChart(monthlyData, hsCode) {
+    const canvas = document.getElementById('trade-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+
+    if (tradeChart) tradeChart.destroy();
+    if (monthlyChart) monthlyChart.destroy();
+
+    const chartColors = [
+        { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)' },
+        { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 1)' },
+        { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 1)' },
+    ];
+
+    const countries = Object.keys(monthlyData.monthly_data);
+    const months = monthlyData.months;
+
+    const datasets = countries.map((country, i) => {
+        const color = chartColors[i % chartColors.length];
+        const values = months.map(mn => {
+            const entry = monthlyData.monthly_data[country].find(m => m.month_name === mn);
+            return entry ? entry.value : 0;
+        });
+
+        return {
+            label: country,
+            data: values,
+            borderColor: color.border,
+            backgroundColor: color.bg,
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointHoverRadius: 7,
+            pointBackgroundColor: color.border,
+            pointBorderColor: '#0f1117',
+            pointBorderWidth: 2,
+        };
+    });
+
+    monthlyChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: months, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Monthly Export Trend — HS ${hsCode} (2024)`,
+                    color: '#e8eaed',
+                    font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
+                    padding: { bottom: 16 }
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#9aa0b0',
+                        font: { family: 'Inter, sans-serif', size: 12 },
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1c1f2e',
+                    titleColor: '#e8eaed',
+                    bodyColor: '#9aa0b0',
+                    borderColor: '#2a2d3e',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    padding: 10,
+                    callbacks: {
+                        label: function (context) {
+                            return ` ${context.dataset.label}: ₹${context.parsed.y.toLocaleString('en-IN')} Cr`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Export Value (Crore ₹)',
+                        color: '#9aa0b0',
+                        font: { family: 'Inter, sans-serif', size: 12 }
+                    },
+                    ticks: {
+                        color: '#5f6577',
+                        font: { family: 'Inter, sans-serif' },
+                        callback: (value) => '₹' + value.toLocaleString('en-IN')
+                    },
+                    grid: {
+                        color: 'rgba(42, 45, 62, 0.6)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Month (2024)',
+                        color: '#9aa0b0',
+                        font: { family: 'Inter, sans-serif', size: 12 }
+                    },
+                    ticks: {
+                        color: '#9aa0b0',
+                        font: { family: 'Inter, sans-serif' }
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+
+    // Keep reference so we can destroy it later
+    tradeChart = monthlyChart;
 }
 
 // === UTILITIES ===

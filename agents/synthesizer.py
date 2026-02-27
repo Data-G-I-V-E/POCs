@@ -27,14 +27,14 @@ class AnswerSynthesizer:
         """Synthesize final answer"""
         
         # Prepare results for synthesis
-        sql_summary = "Not available"
+        sql_summary = "NOT CHECKED — SQL agent was not invoked for this query."
         if state.get("sql_results"):
             if state["sql_results"].get("success"):
                 sql_summary = str(state["sql_results"]["result"])
             elif state["sql_results"].get("error"):
                 sql_summary = f"Query failed: {state['sql_results']['error']}"
         
-        policy_summary = "Not available"
+        policy_summary = "NOT CHECKED — Policy agent was not invoked for this query."
         if state.get("policy_results") and state["policy_results"].get("success"):
             result = state["policy_results"]["result"]
             if isinstance(result, dict):
@@ -67,7 +67,7 @@ class AnswerSynthesizer:
                         s_info = result.get('ste_info', {})
                         policy_summary += f"\nSTE DETAILS: Export only via {s_info.get('authorized_entity', 'designated entity')}"
         
-        vector_summary = "Not available"
+        vector_summary = "NOT CHECKED — Vector agent was not invoked for this query."
         if state.get("vector_results"):
             docs = state["vector_results"][:2]
             vector_summary = "\n\n".join([
@@ -76,7 +76,7 @@ class AnswerSynthesizer:
             ])
         
         # Build agreement summary
-        agreement_summary = "Not available"
+        agreement_summary = "NOT CHECKED — Agreements agent was not invoked for this query."
         if state.get("agreement_results"):
             agreement_docs = state["agreement_results"]
             parts = []
@@ -111,6 +111,7 @@ class AnswerSynthesizer:
         final_answer = response.invoke({
             "messages": state["messages"],
             "query": state["user_query"],
+            "query_type": state.get("query_type", "unknown"),
             "sql_results": sql_summary,
             "policy_results": policy_summary,
             "vector_results": vector_summary,

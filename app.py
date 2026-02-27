@@ -246,6 +246,106 @@ async def get_trade_data(request: TradeDataRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/monthly-trade-data")
+async def get_monthly_trade_data(request: TradeDataRequest):
+    """
+    Get monthly trade data for visualization (line chart).
+    
+    Returns month-by-month export values per country for a given HS code or chapter.
+    """
+    if not integrator:
+        raise HTTPException(status_code=503, detail="Integrator not initialized")
+    
+    try:
+        conn = psycopg2.connect(**Config.DB_CONFIG)
+        cursor = conn.cursor()
+        
+        if request.hs_code:
+            query = """
+                SELECT country_name, month, month_name, export_value_crore, 
+                       monthly_growth_pct, ytd_value_crore
+                FROM v_monthly_exports
+                WHERE hs_code = %s
+                ORDER BY country_name, month
+            """
+            cursor.execute(query, (request.hs_code,))
+        elif request.chapter:
+            query = """
+                SELECT country_name, month, month_name, 
+                       SUM(export_value_crore) as export_value_crore,
+                       AVG(monthly_growth_pct) as monthly_growth_pct,
+                       SUM(ytd_value_crore) as ytd_value_crore
+                FROM v_monthly_exports
+                WHERE chapter = %s
+                GROUP BY country_name, month, month_name
+                ORDER BY country_name, month
+            """
+            cursor.execute(query, (request.chapter,))
+        else:
+            cursor.close()
+            conn.close()
+            return {"monthly_data": {}, "months": [], "hs_code": None, "chapter": None,
+                    "timestamp": datetime.now().isoformat()}
+        
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Country name normalization for display
+        def short_country(name):
+            if not name:
+                return "Unknown"
+            nl = name.lower()
+            if "emirates" in nl:
+                return "UAE"
+            if "kingdom" in nl:
+                return "UK"
+            return name
+        
+        # Group by country → list of monthly values
+        countries_lower = [c.lower() for c in request.countries]
+        monthly_data = {}  # { "Australia": [{month, value, growth}, ...], ... }
+        months_set = set()
+        
+        for country_name, month, month_name, value, growth, ytd in results:
+            if not country_name:
+                continue
+            cn_lower = country_name.lower()
+            # Filter to requested countries
+            if not (('uae' in countries_lower and 'emirates' in cn_lower) or
+                    ('uk' in countries_lower and 'kingdom' in cn_lower) or
+                    ('australia' in countries_lower and 'australia' in cn_lower)):
+                continue
+            
+            label = short_country(country_name)
+            if label not in monthly_data:
+                monthly_data[label] = []
+            
+            monthly_data[label].append({
+                "month": month,
+                "month_name": month_name,
+                "value": float(value) if value else 0,
+                "growth_pct": float(growth) if growth else None,
+                "ytd_value": float(ytd) if ytd else 0
+            })
+            months_set.add((month, month_name))
+        
+        # Sorted month labels
+        months = [m[1] for m in sorted(months_set, key=lambda x: x[0])]
+        
+        return {
+            "monthly_data": monthly_data,
+            "months": months,
+            "hs_code": request.hs_code,
+            "chapter": request.chapter,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"Error in monthly-trade-data endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/hs-code/{hs_code}")
 async def get_hs_code_info(hs_code: str):
     """Get information about a specific HS code"""
