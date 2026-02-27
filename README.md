@@ -6,10 +6,11 @@ A sophisticated LangGraph-based multi-agent system for export policy analysis, t
 
 This system provides intelligent export advisory services by integrating:
 - **PostgreSQL Database**: Trade statistics (annual + monthly), HS codes, export policies, restrictions
-- **Trade Agreements RAG Store**: 2,524 article-aware chunks from 141 PDFs (FAISS + ChromaDB with cross-reference resolution)
-- **Vector Stores**: DGFT policy documents (ChromaDB)
+- **Trade Agreements RAG Store**: 2,524 article-aware chunks from 141 FTA PDFs (FAISS + ChromaDB with cross-reference resolution)
+- **DGFT FTP RAG Store**: 413 section-aware chunks from 11 Foreign Trade Policy chapter PDFs (FAISS + ChromaDB)
 - **LLM Integration**: Google Gemini 2.5 Flash for intelligent query routing and synthesis
 - **Multi-Agent Architecture**: 6 specialized agents — SQL, Policy, Agreements, Vector, Combined, and Answer Synthesizer
+- **Smart Routing**: LLM-powered product extraction + auto-upgrade to Combined mode so ALL data sources are checked
 - **Conversation Memory**: Per-session conversation history with context-aware multi-turn support
 - **FastAPI Backend**: RESTful API with session management, trade data visualization, and restriction checks
 - **Web UI**: Premium dark-theme interface with charts, markdown rendering, and real-time interaction
@@ -99,8 +100,8 @@ POCs/
 │   ├── router.py                 # QueryRouter — LLM query classification
 │   ├── sql_agent.py              # SQLAgent — text-to-SQL with conversation context
 │   ├── policy_agent.py           # PolicyAgent — export restriction checks
-│   ├── vector_agent.py           # VectorAgent — DGFT policy vector search
-│   ├── agreements_agent.py       # AgreementsAgent — trade agreement search + cross-refs
+│   ├── vector_agent.py           # VectorAgent — DGFT FTP + agreements vector search
+│   ├── agreements_agent.py       # AgreementsAgent — trade agreement search + cross-refs + article lookup
 │   ├── synthesizer.py            # AnswerSynthesizer — combines agent results
 │   └── graph.py                  # ExportAdvisoryGraph orchestrator + demo
 │
@@ -123,6 +124,8 @@ POCs/
 │   ├── ste_items.py              # STE requirements
 │   ├── agreements_ingest_enhanced.py  # Trade agreement PDF ingestion
 │   ├── agreements_retriever.py   # Agreement search with cross-ref resolution
+│   ├── dgft_ftp_ingest.py        # DGFT FTP chapter PDF ingestion (NEW)
+│   ├── dgft_ftp_retriever.py     # DGFT FTP search with section lookup (NEW)
 │   └── monthly_trade_loader.py   # Monthly 2024 trade data (xlsx → PostgreSQL)
 │
 ├── data/                          # Source data
@@ -130,7 +133,9 @@ POCs/
 │   │   ├── australia/            # 34 PDFs (AI-ECTA chapters, annexes, schedules)
 │   │   ├── uae/                  # 39 PDFs (India-UAE CEPA)
 │   │   └── uk/                   # 68 PDFs (India-UK CETA)
-│   ├── policies/                  # DGFT policy documents
+│   ├── policies/
+│   │   └── DGFT_FTP/             # DGFT Foreign Trade Policy (11 chapter PDFs)
+│   │       ├── Ch-1.pdf ... Ch-11.pdf
 │   └── trade_data/                # Export statistics (annual + monthly)
 │       └── dgft_tradestat/2024/   # 567 xlsx files (16 HS × 3 countries × 12 months)
 │
@@ -142,7 +147,11 @@ POCs/
 │   ├── chunk_id_mapping.json      # Chunk ID → FAISS position mapping
 │   └── ingestion_stats.json       # Ingestion statistics
 │
-├── dgft_chroma_db/                # DGFT policies vector store
+├── dgft_ftp_rag_store/            # DGFT FTP policy vector store (NEW)
+│   ├── dgft_ftp.index             # FAISS index (413 vectors)
+│   ├── dgft_ftp_chroma/           # ChromaDB with chapter/section filtering
+│   ├── documents.json             # Chunk text + metadata (413 chunks)
+│   └── section_index.json         # Section → chunk position mapping (264 sections)
 │
 ├── test_agreement_queries.py      # 19 test queries (agreements, SQL, policy, monthly)
 ├── DATA_STORAGE.md                # Data architecture documentation
@@ -194,11 +203,7 @@ python storage-scripts/database_unification.py
 ### 4. Ingest Trade Agreements
 ```bash
 # Ingest 141 trade agreement PDFs into FAISS + ChromaDB
-# Creates article-aware chunks with cross-reference extraction
 python storage-scripts/agreements_ingest_enhanced.py
-
-# Verify ingestion
-python _test_ingest.py
 ```
 
 This processes 108 documents (skips 21 tariff schedule PDFs), creating:
@@ -207,7 +212,18 @@ This processes 108 documents (skips 21 tariff schedule PDFs), creating:
 - **885 articles** indexed for cross-reference resolution
 - **1,201 chunks** (~48%) with cross-references
 
-### 5. Load Monthly Trade Data
+### 5. Ingest DGFT Foreign Trade Policy
+```bash
+# Ingest 11 DGFT FTP chapter PDFs into FAISS + ChromaDB
+python storage-scripts/dgft_ftp_ingest.py
+```
+
+This processes 11 chapters, creating:
+- **413 chunks** with section-level metadata
+- **264 sections** indexed for direct lookup (e.g., Section 7.02)
+- Section-aware chunking (splits on DGFT numbering like 7.01, 7.02)
+
+### 6. Load Monthly Trade Data
 ```bash
 # Load 567 monthly xlsx files into PostgreSQL
 python storage-scripts/monthly_trade_loader.py
@@ -241,14 +257,15 @@ print(graph.format_response(result2))
 
 ## 🎨 Features
 
-### ✅ Multi-Agent Routing (6 Agents)
-- **Query Router**: LLM-powered classification with entity extraction (HS codes, countries)
+### ✅ Multi-Agent Routing (6 Agents + Smart Upgrade)
+- **Query Router**: LLM-powered classification with **LLM-based product name extraction** (no brittle regex — LLM understands "cows" from "i want to export cows to uae") + DB lookup in restricted/prohibited/STE/HS tables
 - **SQL Agent**: Text-to-SQL with full conversation history for context-aware queries
-- **Policy Agent**: Checks prohibited/restricted/STE items with prefix matching (6→8 digit)
-- **Agreements Agent**: Searches trade agreement PDFs with article-level precision and auto cross-reference resolution
-- **Vector Agent**: Searches DGFT policy documents
-- **Combined Agent**: Runs SQL + Policy + Agreements together for complex multi-faceted queries
-- **Answer Synthesizer**: Combines results with source attribution, article citations, and markdown formatting
+- **Policy Agent**: Checks prohibited/restricted/STE items with prefix matching (6→8 digit) + **ITC chapter notes** (main notes, export licensing, policy conditions)
+- **Agreements Agent**: Searches trade agreement PDFs with article-level precision, auto cross-reference resolution, and direct article lookup (e.g., "Article 4.5")
+- **Vector Agent**: Searches BOTH DGFT FTP policy chapters (413 chunks) AND trade agreements (2,524 chunks)
+- **Combined Agent**: Runs ALL 4 agents — SQL + Policy + Agreements + DGFT FTP — for comprehensive answers
+- **Answer Synthesizer**: Combines results with source attribution, article/section citations, chapter notes, and markdown formatting
+- **Auto-Upgrade**: Product queries with HS codes auto-upgrade to Combined mode, ensuring trade stats + policy + agreements + DGFT FTP are all checked
 
 ### ✅ Trade Agreements RAG (NEW)
 - **141 PDFs** ingested from 3 FTAs: India-Australia ECTA, India-UAE CEPA, India-UK CETA
@@ -288,6 +305,7 @@ print(graph.format_response(result2))
 - **Views**: `v_monthly_exports` (with names), `v_quarterly_exports` (aggregated by quarter)
 - **Policy Tracking**: Prohibited, restricted, STE classifications
 - **Trade Agreements**: 2,524 article-aware chunks across 3 FTAs
+- **DGFT FTP Policies**: 413 section-aware chunks across 11 chapters (Ch-1 to Ch-11)
 
 ### ✅ Source Attribution
 Every answer includes:
@@ -540,6 +558,6 @@ Developed as part of PPL+AI internship assignment.
 
 ---
 
-**Last Updated**: February 23, 2026  
-**System Version**: 4.0 (Modular refactoring)  
-**Status**: ✅ Fully Operational (modular agents/ package, 6 agents, Agreements RAG live, FastAPI + Web UI, Memory enabled)
+**Last Updated**: February 28, 2026  
+**System Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)  
+**Status**: ✅ Fully Operational (modular agents/ package, 6 agents, Agreements RAG + DGFT FTP RAG live, Smart Combined routing, LLM product extraction, FastAPI + Web UI, Memory enabled)

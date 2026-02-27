@@ -74,7 +74,20 @@ IMPORTANT:
 Respond with ONE of: SQL, POLICY, AGREEMENTS, VECTOR, GENERAL, COMBINED
 
 Also extract if present:
-- HS Code (6-digit code)
-- Country (australia, uae, uk)"""
+- HS Code (6-digit or 8-digit code if explicitly mentioned)
+- Country (australia, uae, uk)
+- Product name (the actual product/item being discussed, e.g. "cows", "iron ore", "textiles", "vegetables")
+
+Format your response as:
+ROUTE_TYPE | PRODUCT: <product_name or NONE>
+
+Examples:
+- "i want to export cows to uae show past data" → COMBINED | PRODUCT: cows
+- "Can I export iron ore fines?" → POLICY | PRODUCT: iron ore fines
+- "Monthly exports of textiles to Australia" → SQL | PRODUCT: textiles
+- "What is HS code?" → GENERAL | PRODUCT: NONE
+- "Rules of origin for UAE" → AGREEMENTS | PRODUCT: NONE
+- "Show all restricted items" → SQL | PRODUCT: NONE
+- "DGFT FTP categories of supply" → VECTOR | PRODUCT: NONE"""
 
 ROUTER_HUMAN_TEMPLATE = "Query: {query}"

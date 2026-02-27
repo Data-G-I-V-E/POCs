@@ -9,7 +9,7 @@ Complete documentation of how all trade data is stored, organized, and connected
 ### Storage Types
 1. **PostgreSQL Database** - Structured data (HS codes, policies, trade statistics)
 2. **FAISS + ChromaDB** - Trade agreements (article-aware chunking with cross-reference resolution)
-3. **ChromaDB** - DGFT policy vector embeddings for semantic search
+3. **FAISS + ChromaDB** - DGFT Foreign Trade Policy chapters (section-aware chunking with direct section lookup)
 
 ---
 
@@ -831,28 +831,107 @@ results = retriever.search(
 
 ---
 
-## 🔟 DGFT Policy Documents
+## 🔟 DGFT Foreign Trade Policy (FAISS + ChromaDB)
 
-### Storage: ChromaDB
-**Location**: `dgft_chroma_db/`  
-**Status**: ✅ Operational
+### Storage: `dgft_ftp_rag_store/`
+**Status**: ✅ Operational  
+**Created By**: `storage-scripts/dgft_ftp_ingest.py`  
+**Searched By**: `storage-scripts/dgft_ftp_retriever.py` → `VectorAgent` in `agents/vector_agent.py`
 
-**Collection**: `dgft_policies` (or similar)
+### Source Data
+```
+data/policies/DGFT_FTP/
+├── Ch-1.pdf    (Legal Basis, Duration, Amendments)
+├── Ch-2.pdf    (General Provisions)
+├── Ch-3.pdf    (Promotional Measures)
+├── Ch-4.pdf    (Duty Exemption / Remission)
+├── Ch-5.pdf    (Export Promotion Capital Goods)
+├── Ch-6.pdf    (Export Oriented Units)
+├── Ch-7.pdf    (Deemed Exports, Categories of Supply)
+├── Ch-8.pdf    (Quality Complaints)
+├── Ch-9.pdf    (Miscellaneous)
+├── Ch-10.pdf   (Special Provisions)
+└── Ch-11.pdf   (Transitional Arrangements)
+```
+
+### How Ingestion Works
+
+#### Step 1: PDF Text Extraction
+Uses PyMuPDF (`fitz`) to extract text from each chapter PDF.
+
+#### Step 2: Section-Aware Chunking
+Splits on DGFT section numbers (e.g., `7.01`, `7.02`, `4.01`):
 ```python
+# Regex pattern for DGFT section numbers
+pattern = r'(?:^|\n)\s*(\d+\.\d{2,})\s+(.+?)(?=\n)'
+
+# Each chunk gets metadata:
 {
-    "documents": ["DGFT policy text chunk"],
-    "embeddings": [vector_embedding],
-    "metadatas": [{
-        "source": "Foreign Trade Policy 2023",
-        "chapter": "Chapter 4",
-        "page": 15,
-        "policy_type": "export_promotion"
-    }],
-    "ids": ["dgft_ftp_2023_ch4_p15_1"]
+    "text": "7.02 Categories of Supply\n...",
+    "metadata": {
+        "source": "DGFT_FTP",
+        "document_type": "foreign_trade_policy",
+        "chapter_num": 7,
+        "chapter": "Chapter 7",
+        "filename": "Ch-7.pdf",
+        "section_id": "7.02",
+        "section_title": "Categories of Supply",
+        "section_full": "Section 7.02: Categories of Supply",
+        "chunk_id": 5,
+        "sub_chunk": 0,
+        "text_length": 820
+    }
 }
 ```
 
-**No SQL Tables**: Pure vector storage, no relational connections needed
+#### Step 3: Sub-Chunking with Overlap
+Long sections are split at paragraph/sentence boundaries with 150-char overlap.
+
+#### Step 4: Embedding + Storage
+- Embeds with `all-MiniLM-L6-v2` (384-dim, same as agreements)
+- Stores in FAISS FlatIP index (normalized → cosine similarity) + ChromaDB
+
+### Storage Structure
+```
+dgft_ftp_rag_store/
+├── dgft_ftp.index        # FAISS index (413 vectors, cosine similarity)
+├── documents.json        # Chunk text + metadata (413 entries)
+├── section_index.json    # Section → chunk position mapping (264 sections)
+└── dgft_ftp_chroma/      # ChromaDB persistent collection
+    └── dgft_ftp            # Collection name
+```
+
+#### Section Index (`section_index.json`)
+```python
+# Maps section IDs to their FAISS positions
+{
+    "7.02": [{"vector_index": 305, "chapter_num": 7, "section_full": "Section 7.02: Categories of Supply"}],
+    "4.01": [{"vector_index": 120, "chapter_num": 4, "section_full": "Section 4.01: ..."}],
+    # ... 264 sections total
+}
+```
+
+### How Search Works (DGFTFTPRetriever)
+```python
+from dgft_ftp_retriever import DGFTFTPRetriever
+
+retriever = DGFTFTPRetriever()
+
+# Vector similarity search
+results = retriever.search("categories of supply", top_k=3)
+
+# Direct section lookup
+results = retriever.search_section("7.02")
+```
+
+### Ingestion Statistics
+| Metric | Value |
+|--------|-------|
+| Chapter PDFs | 11 |
+| Total chunks | 413 |
+| Sections indexed | 264 |
+| Embedding model | all-MiniLM-L6-v2 (384-dim) |
+| FAISS index type | FlatIP (cosine similarity) |
 
 ---
 
@@ -962,7 +1041,7 @@ chapter_code: '07', note_type: 'export_licensing', sl_no: 1, note_text: '...'
 | **Monthly Exports View** | PostgreSQL VIEW | `v_monthly_exports` | Joins hs_codes, countries | ❌ No |
 | **Quarterly Exports View** | PostgreSQL VIEW | `v_quarterly_exports` | Aggregates monthly data | ❌ No |
 | **Unified Policy View** | PostgreSQL VIEW | `v_export_policy_unified` | Joins 6+ tables | ❌ No |
-| **DGFT Policies** | ChromaDB Vector | `dgft_chroma_db/` | Metadata-based search | ✅ Metadata only |
+| **DGFT FTP Policies** | FAISS + ChromaDB | `dgft_ftp_rag_store/` | Section-aware chunks, section index | ✅ Metadata only |
 | **Trade Agreements** | FAISS + ChromaDB | `agreements_rag_store/` | Article-aware chunks, cross-ref index | ✅ Metadata only |
 
 ---
@@ -997,12 +1076,12 @@ Each agent in `agents/` reads from specific data stores:
 
 | Agent | File | Data Sources |
 |-------|------|--------------|
-| **QueryRouter** | `agents/router.py` | — (LLM-only, no data access) |
+| **QueryRouter** | `agents/router.py` | LLM-based product extraction → DB lookup in `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` |
 | **SQLAgent** | `agents/sql_agent.py` | `export_statistics`, `monthly_export_statistics`, `v_monthly_exports`, `v_quarterly_exports`, `v_export_policy_unified`, `mv_hs_export_summary`, DB functions |
-| **PolicyAgent** | `agents/policy_agent.py` | `prohibited_items`, `restricted_items`, `ste_items`, `v_export_policy_unified` via `ExportDataIntegrator` |
-| **VectorAgent** | `agents/vector_agent.py` | `dgft_chroma_db/` (ChromaDB) |
-| **AgreementsAgent** | `agents/agreements_agent.py` | `agreements_rag_store/` (FAISS + ChromaDB + article index) via `AgreementsRetriever` |
-| **Combined** | `agents/graph.py` | Runs SQL + Policy + Agreements together; also directly queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies` |
+| **PolicyAgent** | `agents/policy_agent.py` | `prohibited_items`, `restricted_items`, `ste_items`, `v_export_policy_unified`, `itc_chapter_notes`, `itc_chapters` via `ExportDataIntegrator` |
+| **VectorAgent** | `agents/vector_agent.py` | `dgft_ftp_rag_store/` (FAISS + ChromaDB) + `agreements_rag_store/` (FAISS + ChromaDB) via `DGFTFTPRetriever` + `AgreementsRetriever` |
+| **AgreementsAgent** | `agents/agreements_agent.py` | `agreements_rag_store/` (FAISS + ChromaDB + article index) via `AgreementsRetriever` + direct article lookup |
+| **Combined** | `agents/graph.py` | Runs SQL + Policy + Agreements + DGFT FTP together; also directly queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies` |
 | **AnswerSynthesizer** | `agents/synthesizer.py` | — (combines results from other agents, LLM-only) |
 
 ## 🔍 Query Examples
@@ -1065,6 +1144,8 @@ ORDER BY policy_type;
 - `storage-scripts/database_unification.py` - Creates unified views
 - `storage-scripts/agreements_ingest_enhanced.py` - Trade agreement PDF ingestion
 - `storage-scripts/agreements_retriever.py` - Agreement search with cross-reference resolution
+- `storage-scripts/dgft_ftp_ingest.py` - DGFT FTP chapter PDF ingestion (section-aware)
+- `storage-scripts/dgft_ftp_retriever.py` - DGFT FTP search with section lookup
 
 ---
 
@@ -1120,5 +1201,5 @@ Key endpoints:
 
 ---
 
-**Last Updated**: February 23, 2026  
-**Database Schema Version**: 4.0 (Modular agent refactoring, agents/ package)
+**Last Updated**: February 28, 2026  
+**Database Schema Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)

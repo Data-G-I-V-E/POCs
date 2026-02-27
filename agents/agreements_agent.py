@@ -5,6 +5,7 @@ Searches trade agreement PDFs (India-Australia ECTA, India-UAE CEPA, India-UK CE
 using FAISS/ChromaDB vector search with cross-reference resolution.
 """
 
+import re
 from datetime import datetime
 
 from config import Config
@@ -52,7 +53,39 @@ class AgreementsAgent:
         
         try:
             results = []
+            seen_texts = set()  # Track seen text to avoid duplicates
             
+            # --- Direct article lookup ---
+            # Detect "Article X.Y" pattern in the query for precise retrieval
+            article_match = re.search(
+                r'article\s+(\d+(?:\.\d+)?)',
+                query, re.IGNORECASE
+            )
+            
+            if article_match and country:
+                article_id = article_match.group(1)
+                direct_hits = self.retriever.search_article(article_id, country)
+                for doc in direct_hits:
+                    meta = doc.get("metadata", {})
+                    text = doc["text"]
+                    seen_texts.add(text[:100])  # Track by first 100 chars
+                    result_entry = {
+                        "type": "trade_agreement",
+                        "text": text,
+                        "metadata": meta,
+                        "score": doc["similarity_score"],
+                        "source_type": "article_lookup",
+                        "country": meta.get("country", country),
+                        "agreement": meta.get("agreement", ""),
+                        "article": meta.get("article_full", ""),
+                        "doc_type": meta.get("doc_type", ""),
+                        "cross_ref_articles": meta.get("cross_ref_articles", ""),
+                        "cross_ref_annexes": meta.get("cross_ref_annexes", ""),
+                        "is_cross_ref": False,
+                    }
+                    results.append(result_entry)
+            
+            # --- Vector similarity search (supplement) ---
             # Build an enriched search query for better retrieval
             search_query = query
             if hs_code:
@@ -67,10 +100,16 @@ class AgreementsAgent:
             )
             
             for doc in agreement_hits:
+                text = doc["text"]
+                # Skip if already found via direct article lookup
+                if text[:100] in seen_texts:
+                    continue
+                seen_texts.add(text[:100])
+                
                 meta = doc.get("metadata", {})
                 result_entry = {
                     "type": "trade_agreement",
-                    "text": doc["text"],
+                    "text": text,
                     "metadata": meta,
                     "score": doc["similarity_score"],
                     "source_type": doc.get("source", "unknown"),

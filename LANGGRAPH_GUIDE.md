@@ -58,6 +58,9 @@ A sophisticated multi-agent system using **LangGraph** that intelligently routes
 ### 1. **Query Router** (`agents/router.py`)
 - Analyzes user intent
 - Extracts entities (HS codes, countries)
+- **LLM-based product extraction**: The LLM outputs `ROUTE_TYPE | PRODUCT: <name>` — no brittle phrase stripping. "i want to export cows to uae show past data" → extracts "cows" automatically
+- **DB lookup**: Uses extracted product name to search `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` by description (ILIKE)
+- **Auto-upgrade**: When HS code + country detected, upgrades route from `policy`/`sql` to `combined` so ALL agents fire
 - Routes to appropriate specialist agents
 - Powered by Gemini 2.5 Flash
 - Prompt defined in `prompts/router_prompt.py`
@@ -107,19 +110,25 @@ Checks export feasibility and restrictions:
 - `prohibited_items`
 - `restricted_items`
 - `ste_items`
+- `itc_chapter_notes` (main notes, policy conditions, export licensing)
+- `itc_chapters` (chapter names)
 
 ### 4. **Vector Agent** (`agents/vector_agent.py`)
-Semantic search across DGFT policy documents:
-- Foreign Trade Policy
-- DGFT notifications
-- Export promotion schemes
+Semantic search across **both** DGFT FTP policy chapters and trade agreements:
+- **DGFT FTP**: 11 chapters (Ch-1 to Ch-11), 413 section-aware chunks, 264 sections
+- **Trade Agreements**: 2,524 article-aware chunks from 3 FTAs (fallback to agreements store)
+- **Direct section lookup**: When query mentions a section like "7.02", fetches it directly via section index
+- **Deduplication**: Avoids duplicate results between direct lookup and vector search
 
 **Example Queries:**
+- "Categories of supply under DGFT FTP" → finds Section 7.02 in Chapter 7
+- "Deemed exports" → finds relevant DGFT FTP sections
+- "Advance authorization" → finds Chapter 4 content  
 - "DGFT policy for agricultural exports"
-- "What export promotion schemes are available?"
 
 **Data Sources:**
-- ChromaDB (`dgft_chroma_db/`)
+- `dgft_ftp_rag_store/` (FAISS + ChromaDB) via `DGFTFTPRetriever`
+- `agreements_rag_store/` (FAISS + ChromaDB) via `AgreementsRetriever`
 
 ### 5. **Agreements Agent** (`agents/agreements_agent.py`) (NEW)
 Searches trade agreement PDFs with article-level precision and cross-reference resolution:
@@ -133,6 +142,7 @@ Searches trade agreement PDFs with article-level precision and cross-reference r
 **Key Features:**
 - **Article-aware chunking**: Returns whole Article sections, not arbitrary text windows
 - **Cross-reference resolution**: If Article 4.3 mentions Article 4.6, both are returned
+- **Direct article lookup**: When query contains "Article X.Y", fetches it directly via article index (bypasses vector search for precision)
 - **Country filtering**: Search only Australia, UAE, or UK agreements
 - **OCR cleanup**: Fixes 15+ common scanning errors from UAE PDFs
 
@@ -154,24 +164,31 @@ Searches trade agreement PDFs with article-level precision and cross-reference r
 - India-UK CETA: 1,196 chunks, 449 articles
 
 ### 6. **Combined Agent** (`agents/graph.py` → `_combined_execute` method)
-Handles complex queries requiring BOTH data aggregation AND policy checks AND agreement lookup:
-- Runs SQL Agent first for data/statistics
-- Then runs Policy Agent for chapter-level restriction checks
-- Then runs Agreements Agent if a country is specified in the query
+Handles complex queries requiring BOTH data aggregation AND policy checks AND agreement lookup AND DGFT FTP context:
+- Runs **SQL Agent** first for data/statistics
+- Then runs **Policy Agent** for restriction/STE/prohibited checks
+- Then runs **Agreements Agent** if a country is specified in the query
+- Then runs **DGFT FTP vector search** for Foreign Trade Policy context
 - Queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies`
 - Extracts chapter numbers from the query and does batch lookups
+
+**Auto-triggered when:**
+- Query has **HS code + country** (upgraded from `policy` or `sql`)
+- Query has **HS code** only (upgraded from `policy`)
+- LLM classifies as `combined` explicitly
 
 **Example Queries:**
 - "Can I export vegetables to Australia and what are the tariff benefits?"
 - "Show export values AND restrictions AND agreement provisions for chapter 07"
-- "What are the export values and trade agreement benefits for textiles to UAE?"
+- "Iron ore Fines export policies to UAE" (← auto-upgraded from policy)
 
 **Why Combined?**
-- Single-agent queries (SQL or Policy alone) miss data from the other
+- Single-agent queries (SQL or Policy alone) miss data from the others
 - SQL Agent can generate aggregate queries but doesn’t check restriction tables deeply
 - Policy Agent checks restrictions but has no access to export statistics
 - Agreements Agent searches FTA text but has no export statistics or policy data
-- Combined runs all three, giving the synthesizer a complete picture
+- DGFT FTP provides FTP policy context not available in the DB
+- Combined runs all four, giving the synthesizer a complete picture
 
 ### 7. **Answer Synthesizer** (`agents/synthesizer.py`)
 - Combines results from all agents
@@ -340,15 +357,17 @@ The router uses LLM-based classification:
 | "monthly", "trend", "quarterly", "best month" | SQL Agent | "Monthly exports of textiles to UAE" |
 | "can I export", "allowed", "prohibited" | Policy Agent | "Can I export HS 070310?" |
 | "rules of origin", "tariff benefits", "FTA", "ECTA", "CEPA", "customs procedures" | **Agreements Agent** | "Rules of origin for textiles to Australia" |
-| "DGFT", "policy document" | Vector Agent | "DGFT policy for agricultural exports" |
+| "DGFT", "FTP", "categories of supply", "deemed exports" | **Vector Agent** | "Categories of supply under DGFT FTP" |
 | Data + policy/restrictions + agreements together | **Combined Agent** | "Show export values AND agreement benefits for chapter 07" |
+| HS code detected (auto-upgrade from policy/sql) | **Combined Agent** | "Can I export HS 070310 to Australia?" |
 | General questions | Synthesizer | "What is HS code?" |
 
 ## 🎨 Features
 
 ### ✅ Multi-Agent Orchestration
 - Intelligent query routing (6 route types: SQL, Policy, Agreements, Vector, Combined, General)
-- Combined agent for complex multi-faceted queries (SQL + Policy + Agreements)
+- **Smart auto-upgrade**: Product queries with HS codes automatically upgrade to Combined
+- Combined agent runs ALL 4 agents (SQL + Policy + Agreements + DGFT FTP) for comprehensive answers
 - Result aggregation from multiple sources
 
 ### ✅ Source Attribution
@@ -408,10 +427,10 @@ The router uses LLM-based classification:
 |-----------|--------------|-----|
 | **Query Router** | ✅ Yes | MessagesPlaceholder in routing prompt |
 | **SQL Agent** | ✅ Yes | MessagesPlaceholder in SQL generation prompt |
-| **Policy Agent** | ❌ No | Uses extracted HS code from router |
-| **Agreements Agent** | ❌ No | Uses raw query text + extracted country |
-| **Vector Agent** | ❌ No | Uses raw query text |
-| **Combined Agent** | ✅ Yes | Runs SQL Agent (with history) + Policy batch check + Agreements |
+| **Policy Agent** | ❌ No | Uses extracted HS code from router + chapter notes from `itc_chapter_notes` |
+| **Agreements Agent** | ❌ No | Uses raw query text + extracted country + direct article lookup |
+| **Vector Agent** | ❌ No | Uses raw query text + section detection for direct lookup |
+| **Combined Agent** | ✅ Yes | Runs SQL (with history) + Policy (with chapter notes) + Agreements + DGFT FTP search |
 | **Synthesizer** | ✅ Yes | MessagesPlaceholder in synthesis prompt |
 
 ### Multi-Turn Example
@@ -571,5 +590,5 @@ class AgentState(TypedDict):
 ---
 
 **Built with LangGraph, LangChain, Google Gemini, FAISS, ChromaDB, and FastAPI** 🚀  
-**Last Updated**: February 23, 2026  
-**Version**: 4.0 (Modular refactoring)
+**Last Updated**: February 28, 2026  
+**Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)

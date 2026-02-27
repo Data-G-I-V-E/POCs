@@ -151,6 +151,36 @@ class ExportAdvisoryGraph:
         if country and self.agreements_agent.retriever:
             state = self.agreements_agent.execute(state)
         
+        # Also search DGFT FTP policies via vector agent
+        # This adds relevant FTP chapter content to vector_results
+        if self.vector_agent.dgft_retriever:
+            try:
+                dgft_hits = self.vector_agent.dgft_retriever.search(
+                    query=state["user_query"],
+                    top_k=3,
+                )
+                # Append DGFT FTP results to vector_results
+                existing_vector = state.get("vector_results") or []
+                for doc in dgft_hits:
+                    existing_vector.append({
+                        "type": "dgft_ftp",
+                        "text": doc["text"],
+                        "metadata": doc["metadata"],
+                        "score": doc["similarity_score"]
+                    })
+                state["vector_results"] = existing_vector
+                
+                if dgft_hits:
+                    state["sources"].append({
+                        "type": "vector_search",
+                        "stores": ["dgft_ftp_rag_store"],
+                        "dgft_ftp_results": len(dgft_hits),
+                        "query": state["user_query"],
+                        "timestamp": datetime.now().isoformat()
+                    })
+            except Exception as e:
+                print(f"⚠️  DGFT FTP search in combined failed: {e}")
+        
         state["next_agent"] = "synthesizer"
         state["query_type"] = "combined"
         return state
