@@ -42,46 +42,52 @@ This system provides intelligent export advisory services by integrating:
                                     │
              ┌──────────────────────▼──────────────────────┐
              │              QUERY ROUTER                    │
-             │  • LLM-based classification                  │
-             │  • Entity extraction (HS, country)           │
-             │  • Context-aware (uses chat history)         │
-             └──┬──────┬──────────┬──────────┬──────┬──────┘
-                │      │          │          │      │
-         ┌──────▼──┐┌──▼─────┐┌───▼────┐┌───▼────┐ │
-         │SQL Agent││Policy  ││Agreemts││Vector  │ │
-         │         ││Agent   ││Agent   ││Agent   │ │
-         │Text→SQL ││        ││        ││        │ │
-         │+History ││Checks: ││Search: ││Search: │ │
-         │         ││Prohib. ││FTA text││DGFT    │ │
-         │Queries: ││Restr.  ││Rules of││Policies│ │
-         │Stats    ││STE     ││Origin  ││        │ │
-         │Aggreg.  ││ITC     ││Tariffs ││        │ │
-         │         ││        ││X-refs  ││        │ │
-         └───┬─────┘└───┬────┘└───┬────┘└───┬────┘ │
-             │          │         │         │      │
-             │          │         │         │  ┌───▼───────────┐
-             │          │         │         │  │COMBINED Agent │
-             │          │         │         │  │               │
-             │          │         │         │  │Runs SQL +     │
-             │          │         │         │  │Policy +       │
-             │          │         │         │  │Agreements     │
-             │          │         │         │  │together       │
-             │          │         │         │  └───────┬───────┘
-             │          │         │         │          │
-             └──────────┼─────────┼─────────┼──────────┘
-                        │         │         │
-              ┌─────────▼─────────▼─────────▼──┐
-              │     Answer Synthesizer          │
-              │  • Markdown output              │
-              │  • Source citations (w/ articles)│
-              │  • Trade agreement references    │
-              │  • Context-aware                 │
-              └─────────┬──────────────────────┘
-                        │
-              ┌─────────▼─────────┐
-              │  Final Response    │
-              │  + Sources + Meta  │
-              └───────────────────┘
+             │  • LLM-based classification + product name   │
+             │  • HS code regex + DB lookup by description  │
+             │  • Auto-upgrade: HS+country → combined       │
+             │  • Auto-upgrade: HS+policy → combined        │
+             └──┬──────┬──────┬──────┬──────┬──────┬───────┘
+                │      │      │      │      │      │
+           (Router picks ONE path based on query type)
+                │      │      │      │      │      │
+         ┌──────▼──┐┌──▼───┐┌─▼────┐┌▼─────┐│ ┌────▼─────┐
+         │SQL Agent││Policy││Agree-││Vector││ │ general  │
+         │         ││Agent ││ments ││Agent ││ │(no agent)│
+         │Text→SQL ││      ││Agent ││      ││ └────┬─────┘
+         │+History ││Check:││      ││DGFT+ ││      │
+         │         ││Proh. ││FTA   ││Agree ││      │
+         │Postgres ││Rest. ││PDFs  ││PDFs  ││      │
+         │stats,   ││STE   ││Cross-││      ││      │
+         │monthly  ││ITC   ││refs  ││      ││      │
+         │views    ││Notes ││      ││      ││      │
+         └───┬─────┘└──┬───┘└──┬───┘└──┬───┘│      │
+             │         │       │       │    │      │
+             │         │       │       │ ┌──▼──────────────┐
+             │         │       │       │ │ COMBINED Agent  │
+             │         │       │       │ │ (sequential)    │
+             │         │       │       │ │                 │
+             │         │       │       │ │ 1. SQL Agent    │
+             │         │       │       │ │ 2. Policy Agent │
+             │         │       │       │ │ 3. Agreements   │
+             │         │       │       │ │    (if country) │
+             │         │       │       │ │ 4. DGFT FTP     │
+             │         │       │       │ │    retriever    │
+             │         │       │       │ └────────┬────────┘
+             │         │       │       │          │
+             └─────────┴───────┴───────┴──────────┘
+                                │
+              ┌─────────────────▼──────────────────┐
+              │        Answer Synthesizer           │
+              │  • Combines all agent results       │
+              │  • Markdown output + source cites   │
+              │  • Chapter notes integration        │
+              │  • Context-aware (uses history)     │
+              └─────────────────┬──────────────────┘
+                                │
+              ┌─────────────────▼──────────────────┐
+              │          Final Response              │
+              │    + Sources + Meta + Timestamps     │
+              └────────────────────────────────────┘
 ```
 
 ## 📁 Project Structure
@@ -119,14 +125,22 @@ POCs/
 │
 ├── storage-scripts/               # Data ingestion & setup
 │   ├── database_unification.py   # Creates unified SQL views
+│   ├── run_schema.py             # Runs all SQL schema files
 │   ├── itc_data_loader.py        # ITC HS code data loader
+│   ├── itc_bulk.py               # Bulk loader for itc_hs_products
 │   ├── restrictions.py           # Prohibited/restricted items
 │   ├── ste_items.py              # STE requirements
 │   ├── agreements_ingest_enhanced.py  # Trade agreement PDF ingestion
 │   ├── agreements_retriever.py   # Agreement search with cross-ref resolution
-│   ├── dgft_ftp_ingest.py        # DGFT FTP chapter PDF ingestion (NEW)
-│   ├── dgft_ftp_retriever.py     # DGFT FTP search with section lookup (NEW)
-│   └── monthly_trade_loader.py   # Monthly 2024 trade data (xlsx → PostgreSQL)
+│   ├── dgft_ftp_ingest.py        # DGFT FTP chapter PDF ingestion
+│   ├── dgft_ftp_retriever.py     # DGFT FTP search with section lookup
+│   ├── monthly_trade_loader.py   # Monthly 2024 trade data (xlsx → PostgreSQL)
+│   ├── export_data.py            # Export data utilities
+│   ├── export_data_schema.sql    # Export statistics schema
+│   ├── hs_codes.sql              # HS codes table schema
+│   ├── itc_hs_schema.sql         # ITC HS products schema
+│   ├── prohibited_restricted.sql # Prohibited/restricted items schema
+│   └── ste-schema.sql            # STE items schema
 │
 ├── data/                          # Source data
 │   ├── agreements/                # Trade agreement PDFs (AUS, UAE, UK)
@@ -147,11 +161,16 @@ POCs/
 │   ├── chunk_id_mapping.json      # Chunk ID → FAISS position mapping
 │   └── ingestion_stats.json       # Ingestion statistics
 │
-├── dgft_ftp_rag_store/            # DGFT FTP policy vector store (NEW)
+├── dgft_ftp_rag_store/            # DGFT FTP policy vector store
 │   ├── dgft_ftp.index             # FAISS index (413 vectors)
 │   ├── dgft_ftp_chroma/           # ChromaDB with chapter/section filtering
 │   ├── documents.json             # Chunk text + metadata (413 chunks)
 │   └── section_index.json         # Section → chunk position mapping (264 sections)
+│
+├── dgft_output/                   # DGFT FTP parsed article/table data (generated)
+│   ├── master_index.json          # Article index: chapter → articles → cross-refs, tables
+│   ├── table_metadata.json        # Table metadata: table_id, parent_article, chapter
+│   └── tables_raw.json            # Full extracted table content (HTML + text)
 │
 ├── test_agreement_queries.py      # 19 test queries (agreements, SQL, policy, monthly)
 ├── DATA_STORAGE.md                # Data architecture documentation
@@ -175,12 +194,12 @@ pip install -r requirements.txt
 ### 2. Configure Environment
 Create `.env` file:
 ```env
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=PPL-AI
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password
+# Database (these are what config.py reads)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=PPL-AI
+DB_USER=postgres
+DB_PASSWORD=your_password
 
 # Google API
 GOOGLE_API_KEY=your_api_key_here
@@ -230,7 +249,7 @@ python storage-scripts/monthly_trade_loader.py
 ```
 Creates `monthly_export_statistics` table with 565 records, plus `v_monthly_exports` and `v_quarterly_exports` views.
 
-### 5. Run the Application
+### 7. Run the Application
 ```bash
 python app.py
 ```
@@ -239,7 +258,7 @@ Open your browser to:
 - **Frontend**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
-### 6. Test Programmatically
+### 8. Test Programmatically
 ```python
 from agents import ExportAdvisoryGraph  # or: from langgraph_export_agent import ...
 
@@ -263,7 +282,7 @@ print(graph.format_response(result2))
 - **Policy Agent**: Checks prohibited/restricted/STE items with prefix matching (6→8 digit) + **ITC chapter notes** (main notes, export licensing, policy conditions)
 - **Agreements Agent**: Searches trade agreement PDFs with article-level precision, auto cross-reference resolution, and direct article lookup (e.g., "Article 4.5")
 - **Vector Agent**: Searches BOTH DGFT FTP policy chapters (413 chunks) AND trade agreements (2,524 chunks)
-- **Combined Agent**: Runs ALL 4 agents — SQL + Policy + Agreements + DGFT FTP — for comprehensive answers
+- **Combined Agent**: Runs SQL → Policy → Agreements (if country) → DGFT FTP **sequentially** for comprehensive answers. Auto-triggered when HS code + country detected.
 - **Answer Synthesizer**: Combines results with source attribution, article/section citations, chapter notes, and markdown formatting
 - **Auto-Upgrade**: Product queries with HS codes auto-upgrade to Combined mode, ensuring trade stats + policy + agreements + DGFT FTP are all checked
 
@@ -328,6 +347,7 @@ Every answer includes:
 | `GET` | `/api/sessions` | List all active sessions |
 | `POST` | `/api/trade-data` | Get trade data for visualization |
 | `GET` | `/api/hs-code/{hs_code}` | Get HS code information |
+| `POST` | `/api/monthly-trade-data` | Get monthly trade data for line charts |
 | `GET` | `/api/export-check` | Check export eligibility (HS + country) |
 | `GET` | `/api/restriction-check` | Check restriction status (prefix-aware) |
 | `GET` | `/api/focus-codes` | Get list of focus HS codes |
@@ -460,7 +480,7 @@ COUNTRY_CODES = {
 ## 🎯 Data Statistics
 
 ### Current Coverage
-- **HS Codes**: 10,000+ codes tracked
+- **HS Codes**: 31 focus codes tracked in `hs_codes` table (2,006 in `itc_hs_products`)
 - **HS Codes with Policy References**: 57
 - **Export Statistics**: Multi-year data for 3 countries
 - **Prohibited Items**: Complete list
@@ -558,6 +578,6 @@ Developed as part of PPL+AI internship assignment.
 
 ---
 
-**Last Updated**: February 28, 2026  
+**Last Updated**: March 3, 2026  
 **System Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)  
 **Status**: ✅ Fully Operational (modular agents/ package, 6 agents, Agreements RAG + DGFT FTP RAG live, Smart Combined routing, LLM product extraction, FastAPI + Web UI, Memory enabled)
