@@ -1,0 +1,455 @@
+================================================================================
+1. WHERE IS THE DATA STORED?
+================================================================================
+
+We have THREE types of storage, each suited for different kinds of data:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  STORAGE TYPE 1: PostgreSQL Database (Structured Data)             │
+│  ─────────────────────────────────────────────────────              │
+│  Think of this as organized Excel spreadsheets in a database.      │
+│                                                                     │
+│  What's stored here:                                                │
+│  • HS Codes & Descriptions (product classification numbers)        │
+│  • Export Statistics (how much India exported, year-wise & monthly) │
+│  • Restricted Items list (products needing special permission)      │
+│  • Prohibited Items list (products banned from export)              │
+│  • STE Items (products only exportable through govt enterprises)   │
+│  • ITC Policy Conditions (detailed policy rules per chapter)       │
+│  • Chapter Notes (notes, licensing info per product chapter)       │
+│                                                                     │
+│  Why here: This data is structured, needs exact lookups,            │
+│  and changes can be tracked row by row.                             │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  STORAGE TYPE 2: Trade Agreements RAG Store (FAISS + ChromaDB)     │
+│  ─────────────────────────────────────────────────────              │
+│  Think of this as a smart library that can find relevant            │
+│  paragraphs from 141 trade agreement PDF documents.                │
+│                                                                     │
+│  What's stored here:                                                │
+│  • India-Australia ECTA (34 PDFs)                                  │
+│  • India-UAE CEPA (39 PDFs)                                        │
+│  • India-UK CETA (68 PDFs)                                         │
+│  • Total: 2,524 text chunks with article-level indexing            │
+│                                                                     │
+│  Why here: Legal documents can't be stored as spreadsheet rows.    │
+│  We need to SEARCH by meaning ("what does Australia agreement      │
+│  say about textiles?"), not by exact keywords.                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  STORAGE TYPE 3: DGFT FTP RAG Store (FAISS + ChromaDB)             │
+│  ─────────────────────────────────────────────────────              │
+│  Another smart library — this one for DGFT Foreign Trade Policy.   │
+│                                                                     │
+│  What's stored here:                                                │
+│  • 11 chapters of DGFT Foreign Trade Policy                        │
+│  • 413 text chunks with section-level indexing                     │
+│  • Covers: duty exemptions, export promotion, deemed exports, etc. │
+│                                                                     │
+│  Why here: Same reason as agreements — policy documents need        │
+│  meaning-based search, not keyword matching.                        │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  STORAGE TYPE 4: JSON Files (Indexes, Metadata, Tables)            │
+│  ─────────────────────────────────────────────────────              │
+│  JSON files act as "lookup tables" that sit alongside the          │
+│  vector stores. They help the system navigate and understand       │
+│  the document structure without searching.                          │
+│                                                                     │
+│  WHERE THEY LIVE:                                                   │
+│                                                                     │
+│  dgft_output/ (3 files — DGFT FTP chapter data)                   │
+│  ├── master_index.json (110 KB)                                    │
+│  │   Maps every article: chapter → article_id → title,             │
+│  │   cross_references, tables, page number, chunk_count            │
+│  │   Example: Section 1.02 cross-references Section 2.17           │
+│  │                                                                  │
+│  ├── table_metadata.json (19 KB)                                   │
+│  │   Metadata for every table found in DGFT PDFs:                  │
+│  │   table_id, parent_article, chapter, page, caption              │
+│  │   Example: table_1.1.20_0 belongs to Article 1.20               │
+│  │                                                                  │
+│  └── tables_raw.json (136 KB)                                      │
+│      Full table content: HTML, plain text, headers, rows           │
+│      The actual data from tables extracted from PDFs               │
+│                                                                     │
+│  agreements_rag_store/ (4 files — Trade Agreement data)            │
+│  ├── documents.json — All 2,524 text chunks + metadata             │
+│  ├── article_index.json — Article ID → FAISS vector position       │
+│  │   This is HOW cross-references work: Article 4.4 →              │
+│  │   vector position 231 → fetch directly without searching        │
+│  ├── chunk_id_mapping.json — Maps chunk IDs to positions           │
+│  └── ingestion_stats.json — Stats from PDF processing              │
+│                                                                     │
+│  dgft_ftp_rag_store/ (2 files — DGFT FTP policy data)             │
+│  ├── documents.json — All 413 text chunks + metadata               │
+│  └── section_index.json — Section ID → FAISS vector position       │
+│      Example: section "7.02" → vector index 305                    │
+│      Allows direct lookup without similarity search                │
+│                                                                     │
+│  Why JSON, not database: These are fast lookup maps. The system    │
+│  loads them into memory at startup and uses them to jump directly  │
+│  to specific articles, sections, or tables — no search needed.     │
+└─────────────────────────────────────────────────────────────────────┘
+
+  HOW THE VECTOR SEARCH WORKS (FAISS + ChromaDB)
+  ─────────────────────────────────────────────────
+  Both stores above use two search technologies on the SAME data:
+
+  ChromaDB (PRIMARY — used by default)
+    → Stores every text chunk WITH labels (country, chapter, doc type)
+    → Can search by meaning AND filter at the same time
+    → Example: "Find rules of origin, but ONLY in Australia documents"
+      = filters to Australia first, then finds most relevant chunks
+
+  FAISS (FALLBACK — used if ChromaDB is unavailable)
+    → Stores the same chunks as pure number vectors (384 dimensions)
+    → Very fast similarity search, but no label-based filtering
+    → The system falls back to FAISS only if ChromaDB fails to load
+
+  How a search actually runs:
+    Query: "What does UAE agreement say about textiles?"
+      1. System checks: Is ChromaDB available? → Yes
+      2. ChromaDB filters to UAE documents only (751 out of 2,524 chunks)
+      3. ChromaDB finds the top 5 most similar chunks about textiles
+      4. Returns those chunks with article numbers and similarity scores
+    
+    If ChromaDB was NOT available:
+      1. FAISS searches ALL 2,524 chunks (no country filter possible)
+      2. Returns top 5 most similar, then post-filters by country
+
+  In short: ChromaDB = main engine, FAISS = safety net.
+
+
+================================================================================
+2. HOW ARE RELATIONSHIPS BETWEEN DATA ESTABLISHED?
+================================================================================
+
+Different data sources are connected through shared identifiers:
+
+CONNECTION 1: HS Code links everything
+─────────────────────────────────────────
+  The HS Code (e.g., "620462" = Women's cotton trousers) is the 
+  universal key that connects:
+  
+    HS Code "620462"
+        ├── Export Statistics → How much was exported, to which country
+        ├── Restricted Items  → Is it restricted? What conditions?
+        ├── Prohibited Items  → Is it banned?
+        ├── STE Items         → Does it need a state trading enterprise?
+        ├── ITC Policy        → What's the official export policy?
+        └── Chapter Notes     → Chapter 62 notes (textile regulations)
+
+  Example: When user asks "Can I export HS 620462?", the system
+  looks up 620462 in ALL these tables simultaneously.
+
+CONNECTION 2: Chapter Code groups related products
+─────────────────────────────────────────
+  HS Code "620462" → Chapter "62" (Articles of Apparel, not knitted)
+  
+  Chapter "62" has:
+    • Chapter Notes (general rules for all garments)
+    • Policy Conditions (specific conditions like "export via EDI ports")
+    • Export Licensing requirements
+  
+  So a query about one product automatically pulls in the chapter-level 
+  rules that apply to ALL products in that chapter.
+
+CONNECTION 3: Country Code links trade data
+─────────────────────────────────────────
+  Country codes (AUS, UAE, GBR) connect:
+    • Export Statistics → "How much of X did we export to Australia?"
+    • Trade Agreements → "What does Australia's FTA say about X?"
+    • Monthly Data     → "What was January's export value to UAE?"
+
+CONNECTION 4: Policy References link detailed rules
+─────────────────────────────────────────
+  Some products say "subject to Policy Condition 1" in their ITC entry.
+  
+  The system traces this reference:
+    HS Code 07131010 (Yellow Peas) 
+      → "Policy Condition 1" 
+        → Chapter 07, Policy Condition 1 
+          → Full text: "Export shall be through Custom EDI ports..."
+  
+  This chain is maintained through relational joins, not copy-pasting 
+  the policy text into each product row.
+
+CONNECTION 5: Cross-Reference Resolution in Trade Agreements
+─────────────────────────────────────────
+  Trade agreement articles often say things like:
+    "...as provided for in Article 4.4..."
+    "...subject to the provisions of Annex 3-A..."
+
+  During ingestion (when PDFs are first loaded), the system:
+    1. Reads each article's text
+    2. Scans for mentions of other articles (e.g., "Article 4.4", "Annex 3-A")
+    3. Saves these as labels: cross_ref_articles = "4.4, 4.6"
+
+  During search (when user asks a question), the system:
+    1. Finds top 5 relevant articles (e.g., Article 4.2 about textiles)
+    2. Sees that Article 4.2 mentions Article 4.4 and Article 4.6
+    3. Automatically fetches Article 4.4 and 4.6 from the index
+    4. Appends them to the results (up to 3 extra cross-refs)
+
+  Example:
+    User asks: "Rules of origin for textiles to Australia"
+    
+    System finds: Article 4.2 (main answer)
+      → Article 4.2 text says "...as provided for in Article 4.4..."
+      → System auto-fetches Article 4.4 and adds it to results
+    
+    User gets: Article 4.2 + Article 4.4 (the referenced one)
+    Without this: User would see "refer to Article 4.4" but NOT 
+    the actual content of 4.4 — a dead reference.
+
+  This is done in: agreements_retriever.py → _resolve_cross_references()
+  48% of all agreement chunks (1,201 out of 2,524) have cross-references.
+
+================================================================================
+3. THE AGENTS — WHO DOES WHAT?
+================================================================================
+
+The system has 6 specialized agents, each expert in one area:
+
+  ┌──────────────┐
+  │ SQL Agent    │  Answers: "How much did we export?"
+  │              │  Searches: PostgreSQL database
+  │              │  Example: "Show exports of HS 070310 to Australia"
+  │              │  How: Converts English question → SQL query → runs it
+  └──────────────┘
+  
+  ┌──────────────┐
+  │ Policy Agent │  Answers: "Can I export this product?"
+  │              │  Searches: Restricted/Prohibited/STE tables + Chapter Notes
+  │              │  Example: "Is HS 620462 restricted?"
+  │              │  How: Looks up product in all policy tables at once
+  └──────────────┘
+  
+  ┌──────────────┐
+  │ Agreements   │  Answers: "What does the trade agreement say?"
+  │ Agent        │  Searches: Trade Agreement PDFs (141 documents)
+  │              │  Example: "Rules of origin for textiles to UAE"
+  │              │  How: Semantic search → finds relevant articles
+  └──────────────┘
+  
+  ┌──────────────┐
+  │ Vector Agent │  Answers: "What does DGFT policy say about...?"
+  │              │  Searches: DGFT FTP chapters + Trade Agreements  
+  │              │  Example: "What are categories of supply in Ch-7?"
+  │              │  How: Meaning-based search across policy documents
+  └──────────────┘
+  
+  ┌──────────────┐
+  │ Combined     │  Runs ALL 4 agents above simultaneously
+  │ Agent        │  Used when: User asks a complex question needing
+  │              │  both data AND policy AND agreements
+  │              │  Example: "Can I export cows to UAE, show past data"
+  └──────────────┘
+  
+  ┌──────────────┐
+  │ Answer       │  Takes results from all agents and writes the
+  │ Synthesizer  │  final, human-readable answer with sources cited
+  └──────────────┘
+
+
+================================================================================
+4. END-TO-END: HOW A USER QUERY GETS ANSWERED
+================================================================================
+
+Let's trace a real query: "I want to export cows to UAE, show past data"
+
+STEP 1: QUERY ROUTER (agents/router.py)
+──────────────────────────────────────────────────
+  Input:  "I want to export cows to UAE, show past data"
+  
+  The Router sends the query to Google Gemini AI, which returns:
+    • Route Type: COMBINED (needs data + policy + agreements)
+    • Product: "cows"
+    • Country: UAE
+  
+  Since no numeric HS code was given, the system searches PostgreSQL:
+    → SELECT * FROM restricted_items WHERE description ILIKE '%cow%'
+    → Found: HS 01022120 "Cows"
+  
+  The Router also detects both an HS code AND a country are present,
+  so it auto-upgrades to COMBINED mode (runs all agents).
+
+STEP 2: LangGraph orchestrates ALL 4 AGENTS IN PARALLEL
+──────────────────────────────────────────────────
+  LangGraph (the orchestration framework) runs all agents at once.
+  Each agent talks to its own data source:
+
+  Agent 1: SQL Agent (agents/sql_agent.py)
+  ├── Input: HS code + country + user question
+  ├── Gemini AI generates SQL from the question:
+  │   "SELECT hs_code, country_code, year_label, export_value_crore 
+  │    FROM export_statistics 
+  │    WHERE hs_code = '01022120' AND country_code = 'UAE'"
+  ├── Runs SQL on PostgreSQL → Gets rows back
+  └── Returns: Export values by year (or "no data found")
+
+  Agent 2: Policy Agent (agents/policy_agent.py)
+  ├── Queries PostgreSQL via ExportDataIntegrator:
+  │   Step 1: hs_codes table → Get basic HS info
+  │   Step 2: itc_hs_products → Get ITC export policy
+  │   Step 3: prohibited_items WHERE hs_code LIKE '010221%' → ✗ Not found
+  │   Step 4: restricted_items WHERE hs_code LIKE '010221%' → ✓ FOUND!
+  │   Step 5: ste_items WHERE hs_code LIKE '010221%' → ✗ Not found
+  │   Step 6: itc_chapter_notes WHERE chapter_code = '01'
+  │           → Gets main_notes + policy_conditions + export_licensing
+  └── Returns: { restricted: true, policy_condition: "...", 
+                  chapter_notes: [...] }
+
+  Agent 3: Agreements Agent (agents/agreements_agent.py)
+  ├── Creates embedding vector from "cows live animals UAE export"
+  ├── ChromaDB filters to UAE documents (751 chunks)
+  │   → Finds top 5 most relevant chunks about agricultural trade
+  ├── Reads article_index.json to check for cross-references:
+  │   → If Article 4.2 mentions Article 4.4, fetches 4.4 too
+  └── Returns: Relevant CEPA articles + auto-resolved cross-refs
+
+  Agent 4: Vector Agent (agents/vector_agent.py)
+  ├── Searches DGFT FTP store:
+  │   ChromaDB filters + similarity search → "livestock" / "live animals"
+  │   → Finds relevant FTP sections (e.g., Chapter 2 on General Provisions)
+  ├── Also searches Agreements store (same as Agent 3, backup)
+  └── Returns: Relevant FTP sections about animal export rules
+
+STEP 3: ANSWER SYNTHESIZER (agents/synthesizer.py)
+──────────────────────────────────────────────────
+  Collects results from ALL agents and sends to Gemini AI with a prompt:
+  "Here are the results from 4 data sources. Write a coherent answer."
+
+  The synthesizer also:
+  • Adds chapter notes (main_note, policy_condition, export_licensing)
+  • Formats policy status clearly (RESTRICTED / PROHIBITED / FREE)
+  • Cites which data source each piece of info came from
+
+  Final output to user:
+  "Cows (HS 01022120) are RESTRICTED for export from India.
+   
+   📜 Policy Details:
+   - Status: Restricted (as per ITC HS Notification)
+   - Chapter 01 notes: [specific animal export regulations]
+   
+   📊 Trade Data:
+   - [Historical export values if available]
+   
+   📘 Trade Agreement (India-UAE CEPA):
+   - [Relevant CEPA provisions for live animals]
+   
+   📚 Sources: restricted_items, ITC Ch-01 notes, DGFT FTP, 
+               India-UAE CEPA"
+
+
+================================================================================
+5. SMART FEATURES
+================================================================================
+
+A. LLM-Powered Product Recognition
+   ─────────────────────────────────
+   Users don't need to know HS codes. They can say "cows", "textiles",
+   "iron ore" — the AI understands what product they mean and finds 
+   the matching HS code in the database.
+
+B. Auto-Upgrade to Comprehensive Mode
+   ─────────────────────────────────
+   When the system detects both a product AND a country in the query,
+   it automatically runs ALL agents — ensuring no data source is missed.
+   
+   "Can I export 070310 to Australia?"
+   → Detects: HS code + country → Runs: SQL + Policy + Agreements + DGFT FTP
+
+C. Cross-Reference Resolution
+   ─────────────────────────────────
+   When a trade agreement article says "as per Article 4.6", the system
+   looks up Article 4.6 in article_index.json → gets its vector position
+   → fetches it from documents.json → adds it to results.
+   No broken references. (Up to 3 cross-refs auto-fetched per query)
+
+D. Prefix Matching for HS Codes
+   ─────────────────────────────────
+   User might ask about 6-digit code "854340", but the restricted items 
+   list has 8-digit codes like "85434010". The system automatically 
+   uses WHERE hs_code LIKE '854340%' — ensuring nothing slips through.
+
+E. Conversation Memory
+   ─────────────────────────────────
+   The system remembers previous questions in the session.
+   User: "Show exports of HS 070310 to Australia"  
+   User: "Now compare with UAE"  ← System knows to use same HS code
+
+
+================================================================================
+6. DATA FLOW DIAGRAM
+================================================================================
+
+  User Question ("I want to export cows to UAE, show past data")
+       │
+       ▼
+  ┌─────────────────────────────────────────────────────┐
+  │  QUERY ROUTER (agents/router.py)                    │
+  │  Gemini AI extracts: Product="cows", Country=UAE    │
+  │  DB lookup: "cows" → HS 01022120                    │
+  │  Route: COMBINED (HS code + country detected)       │
+  └───────────────────┬─────────────────────────────────┘
+                      │
+        LangGraph runs 4 agents in parallel
+       ┌──────────┬───┴───────┬──────────────┐
+       ▼          ▼           ▼              ▼
+  ┌─────────┐┌─────────┐┌──────────┐┌──────────────┐
+  │SQL Agent││ Policy  ││Agreements││ Vector Agent │
+  │         ││ Agent   ││ Agent    ││              │
+  └────┬────┘└────┬────┘└────┬─────┘└──────┬───────┘
+       │          │          │             │
+       ▼          ▼          ▼             ▼
+  PostgreSQL  PostgreSQL  ChromaDB +   ChromaDB +
+  ┌────────┐  ┌────────┐  JSON files   JSON files
+  │export_ │  │prohib- │  ┌────────┐   ┌────────┐
+  │stats,  │  │ited,   │  │agree-  │   │dgft_   │
+  │monthly │  │restric-│  │ments_  │   │ftp_    │
+  │views   │  │ted,ste,│  │rag_    │   │rag_    │
+  │        │  │chapter │  │store/  │   │store/  │
+  │        │  │_notes  │  │        │   │        │
+  └────┬───┘  └───┬────┘  └───┬────┘   └───┬────┘
+       │          │           │             │
+       └──────────┴─────┬─────┴─────────────┘
+                        │
+                        ▼
+            ┌───────────────────────┐
+            │  ANSWER SYNTHESIZER   │
+            │  (agents/synthesizer) │
+            │                       │
+            │  Gemini AI combines   │
+            │  all results into     │
+            │  one coherent answer  │
+            │  with sources cited   │
+            └───────────┬───────────┘
+                        │
+                        ▼
+                 FINAL ANSWER
+              (shown to user via
+               FastAPI → Web UI)
+
+
+================================================================================
+7. TECHNOLOGY STACK
+================================================================================
+
+  • AI Model:      Google Gemini 2.5 Flash (understands queries, generates SQL)
+  • Database:      PostgreSQL (structured data - stats, policies, restrictions)
+  • Vector Search: FAISS + ChromaDB (finds relevant text from 141+ PDF documents)
+  • Embeddings:    all-MiniLM-L6-v2 (converts text to searchable vectors)
+  • Orchestration: LangGraph (coordinates which agents run and in what order)
+  • Backend:       FastAPI (serves the API and web interface)
+  • Frontend:      HTML/CSS/JS (dark-theme web interface with charts)
+
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
