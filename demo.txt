@@ -435,21 +435,3 @@ E. Conversation Memory
                  FINAL ANSWER
               (shown to user via
                FastAPI → Web UI)
-
-
-================================================================================
-7. TECHNOLOGY STACK
-================================================================================
-
-  • AI Model:      Google Gemini 2.5 Flash (understands queries, generates SQL)
-  • Database:      PostgreSQL (structured data - stats, policies, restrictions)
-  • Vector Search: FAISS + ChromaDB (finds relevant text from 141+ PDF documents)
-  • Embeddings:    all-MiniLM-L6-v2 (converts text to searchable vectors)
-  • Orchestration: LangGraph (coordinates which agents run and in what order)
-  • Backend:       FastAPI (serves the API and web interface)
-  • Frontend:      HTML/CSS/JS (dark-theme web interface with charts)
-
-
-================================================================================
-                              END OF DOCUMENT
-================================================================================
