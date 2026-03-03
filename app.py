@@ -446,7 +446,7 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
         reload_excludes=[
-            "*.md", "*.json", "*.csv", "*.xlsx", "*.pdf",
+            "*.md", "*.json", "*.csv", "*.xlsx", "*.pdf", "*.txt"
             "data/*", "agreements_rag_store/*", "dgft_ftp_rag_store/*",
             "dgft_chroma_db/*", ".gemini/*", "__pycache__/*",
         ],

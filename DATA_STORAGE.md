@@ -25,7 +25,7 @@ Complete documentation of how all trade data is stored, organized, and connected
 
 ### Table: `itc_hs_products`
 **Purpose**: Complete ITC HS nomenclature with export policies  
-**Rows**: ~5,000+ products
+**Rows**: ~2,006 products (6 chapters loaded)
 
 **Schema**:
 ```sql
@@ -34,7 +34,7 @@ CREATE TABLE itc_hs_products (
     chapter_code VARCHAR(2),
     hs_code VARCHAR(10) UNIQUE,
     description TEXT,
-    export_policy VARCHAR(100),      -- 'Free', 'Restricted', 'Prohibited', 'STE'
+    export_policy VARCHAR(100),      -- Currently NULL for bulk-loaded data; policy status tracked via separate tables
     notification_no VARCHAR(50),     -- ITC notification reference
     notification_date DATE,
     parent_hs_code VARCHAR(10),      -- Hierarchical relationship
@@ -57,7 +57,7 @@ CREATE TABLE itc_hs_products (
 
 ### Table: `itc_chapters`
 **Purpose**: Chapter-level information  
-**Rows**: 97 chapters (Chapter 01-97)
+**Rows**: 6 chapters (only chapters with loaded ITC HS data)
 
 **Schema**:
 ```sql
@@ -101,7 +101,7 @@ CREATE TABLE itc_chapter_notes (
   - `export_licensing`: Licensing requirements
 - **Sequential Ordering**: `sl_no` maintains order within each type
 
-**Loaded By**: `storage-scripts/itc_data_loader.py`
+**Loaded By**: `storage-scripts/itc_bulk.py`
 
 ---
 
@@ -200,7 +200,8 @@ CREATE TABLE restricted_items (
     description TEXT,
     export_policy VARCHAR(50),       -- Usually 'Restricted'
     policy_condition TEXT,           -- Specific restriction details
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 );
 ```
 
@@ -235,7 +236,8 @@ CREATE TABLE prohibited_items (
     description TEXT,
     export_policy VARCHAR(50),       -- 'Prohibited'
     policy_condition TEXT,           -- Reason for prohibition
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 );
 ```
 
@@ -270,7 +272,8 @@ CREATE TABLE ste_items (
     export_policy VARCHAR(50),       -- 'STE'
     policy_condition TEXT,           -- STE requirements
     authorized_entity VARCHAR(200),  -- Which STE can export
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 );
 ```
 
@@ -295,17 +298,19 @@ policy_condition: 'Export only through authorized STE'
 
 ### Table: `export_statistics`
 **Purpose**: Historical annual export data by HS code, country, and financial year  
-**Rows**: 100,000+ records
+**Rows**: 96 records (16 focus HS codes × 3 countries × 2 financial years)
 
 **Schema**:
 ```sql
 CREATE TABLE export_statistics (
     id SERIAL PRIMARY KEY,
     hs_code VARCHAR(10),
-    country_code VARCHAR(10),        -- 'AUS', 'UAE', 'GBR', etc.
+    country_code VARCHAR(10),        -- 'AUS', 'UAE', 'GBR'
     year_label VARCHAR(20),          -- '2023-2024', '2024-2025'
     export_value_crore DECIMAL(15,2),-- Export value in ₹ Crore
+    serial_number INTEGER,           -- S.No. from source Excel
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
     FOREIGN KEY (hs_code) REFERENCES hs_codes(hs_code),
     FOREIGN KEY (country_code) REFERENCES countries(country_code)
 );
@@ -340,13 +345,15 @@ export_value_crore: 15.23
 **Schema**:
 ```sql
 CREATE TABLE countries (
-    id SERIAL PRIMARY KEY,
-    country_code VARCHAR(10) UNIQUE, -- 'AUS', 'UAE', 'UK'
-    country_name VARCHAR(100),       -- 'Australia', 'United Arab Emirates'
-    region VARCHAR(100),             -- 'Oceania', 'Middle East', 'Europe'
+    country_code VARCHAR(10) PRIMARY KEY, -- 'AUS', 'UAE', 'GBR'
+    country_name VARCHAR(100),            -- 'Australia', 'United Arab Emirates', 'United Kingdom'
+    region VARCHAR(100),                  -- 'Oceania', 'Middle East', 'Europe'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+> [!IMPORTANT]
+> UK uses country code `'GBR'`, NOT `'UK'`. All queries must use `'GBR'` for United Kingdom.
 
 **Connection**: `export_statistics.country_code` → `countries.country_code`
 
@@ -361,11 +368,13 @@ CREATE TABLE countries (
 CREATE TABLE financial_years (
     id SERIAL PRIMARY KEY,
     year_label VARCHAR(20) UNIQUE,   -- '2023-2024'
-    start_date DATE,                 -- 2023-04-01
-    end_date DATE,                   -- 2024-03-31
-    is_current BOOLEAN DEFAULT FALSE
+    start_year INTEGER,              -- 2023
+    end_year INTEGER,                -- 2024
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+**Current Data**: 4 years loaded: `2021-2022`, `2022-2023`, `2023-2024`, `2024-2025`
 
 ---
 
@@ -491,8 +500,8 @@ GROUP BY month_name, month ORDER BY total DESC LIMIT 1;
 ## 7️⃣ HS Codes Base Table
 
 ### Table: `hs_codes`
-**Purpose**: Master HS code reference (primarily 6-digit codes)  
-**Rows**: 5,000+ codes
+**Purpose**: Master HS code reference for focus HS codes  
+**Rows**: 31 codes (16 focus 6-digit codes + their 4-digit and 2-digit parents)
 
 **Schema**:
 ```sql
@@ -517,7 +526,7 @@ CREATE TABLE hs_codes (
 
 ### Table: `chapters`
 **Purpose**: HS chapter master reference  
-**Rows**: 97 chapters
+**Rows**: 6 chapters (only chapters covered by focus HS codes)
 
 **Schema**:
 ```sql
@@ -615,9 +624,11 @@ LEFT JOIN v_export_policy_unified ep ON hc.hs_code = ep.hs_code;
 
 ### Materialized View: `mv_hs_export_summary`
 **Purpose**: Pre-computed export statistics aggregations  
-**Type**: PostgreSQL MATERIALIZED VIEW
+**Type**: PostgreSQL MATERIALIZED VIEW  
+**Status**: ⚠️ **NOT CURRENTLY CREATED** — documented for reference but not yet deployed
 
 ```sql
+-- Schema (not yet created in DB):
 CREATE MATERIALIZED VIEW mv_hs_export_summary AS
 SELECT 
     es.hs_code,
@@ -625,13 +636,13 @@ SELECT
     COUNT(DISTINCT es.country_code) AS export_countries_count,
     SUM(es.export_value_crore) AS total_export_value_crore,
     MAX(es.year_label) AS latest_year,
-    array_agg(DISTINCT es.country_code) AS export_countries  -- Array, not JSON
+    array_agg(DISTINCT es.country_code) AS export_countries
 FROM export_statistics es
 JOIN hs_codes hc ON es.hs_code = hc.hs_code
 GROUP BY es.hs_code, hc.description;
 ```
 
-**Refresh**: `REFRESH MATERIALIZED VIEW mv_hs_export_summary;`
+**To create**: Run the SQL above, then `REFRESH MATERIALIZED VIEW mv_hs_export_summary;`
 
 ---
 
