@@ -8,7 +8,7 @@ This system provides intelligent export advisory services by integrating:
 - **PostgreSQL Database**: Trade statistics (annual + monthly), HS codes, export policies, restrictions
 - **Trade Agreements RAG Store**: 2,524 article-aware chunks from 141 FTA PDFs (FAISS + ChromaDB with cross-reference resolution)
 - **DGFT FTP RAG Store**: 413 section-aware chunks from 11 Foreign Trade Policy chapter PDFs (FAISS + ChromaDB)
-- **LLM Integration**: Google Gemini 2.5 Flash for intelligent query routing and synthesis
+- **LLM Integration**: Anthropic Claude Sonnet 4 for intelligent query routing and synthesis
 - **Multi-Agent Architecture**: 6 specialized agents — SQL, Policy, Agreements, Vector, Combined, and Answer Synthesizer
 - **Smart Routing**: LLM-powered product extraction + auto-upgrade to Combined mode so ALL data sources are checked
 - **Conversation Memory**: Per-session conversation history with context-aware multi-turn support
@@ -183,7 +183,7 @@ POCs/
 ### Prerequisites
 - Python 3.11+
 - PostgreSQL database
-- Google Gemini API key
+- Anthropic API key
 
 ### 1. Install Dependencies
 ```bash
@@ -201,8 +201,8 @@ DB_NAME=PPL-AI
 DB_USER=postgres
 DB_PASSWORD=your_password
 
-# Google API
-GOOGLE_API_KEY=your_api_key_here
+# Anthropic API
+ANTHROPIC_API_KEY=your_api_key_here
 ```
 
 ### 3. Setup Database
@@ -546,7 +546,7 @@ python -c "from config import Config; import psycopg2; psycopg2.connect(**Config
 pip install -r requirements.txt
 
 # Key dependencies
-pip install langgraph langchain-google-genai psycopg2 chromadb
+pip install langgraph langchain-anthropic psycopg2 chromadb
 ```
 
 ### Missing Tables

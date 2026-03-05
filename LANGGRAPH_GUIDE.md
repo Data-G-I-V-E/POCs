@@ -62,7 +62,7 @@ A sophisticated multi-agent system using **LangGraph** that intelligently routes
 - **DB lookup**: Uses extracted product name to search `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` by description (ILIKE)
 - **Auto-upgrade**: When HS code + country detected, upgrades route from `policy`/`sql` to `combined` so ALL agents fire
 - Routes to appropriate specialist agents
-- Powered by Gemini 2.5 Flash
+- Powered by Anthropic Claude Sonnet 4
 - Prompt defined in `prompts/router_prompt.py`
 
 ### 2. **SQL Agent** (`agents/sql_agent.py`) — Text-to-SQL
@@ -207,14 +207,14 @@ Handles complex queries requiring BOTH data aggregation AND policy checks AND ag
 pip install -r requirements.txt
 
 # OR install specific packages
-pip install langgraph langchain-google-genai langchain-community
+pip install langgraph langchain-anthropic langchain-community
 ```
 
 ### Setup
 
-1. Ensure `.env` file has `GOOGLE_API_KEY`:
+1. Ensure `.env` file has `ANTHROPIC_API_KEY`:
 ```bash
-GOOGLE_API_KEY=your_api_key_here
+ANTHROPIC_API_KEY=your_api_key_here
 ```
 
 2. Database must be set up (run `database_unification.py` first)
@@ -250,8 +250,8 @@ python test_agreement_queries.py --quick
 
 The system is organized into two packages:
 
-- **`agents/`** — One file per agent, plus `state.py` (shared `AgentState`) and `graph.py` (orchestrator)
-- **`prompts/`** — All LLM prompts as editable Python string constants
+-   **`agents/`** — One file per agent, plus `state.py` (shared `AgentState`) and `graph.py` (orchestrator)
+-   **`prompts/`** — All LLM prompts as editable Python string constants
 
 Import from either path:
 ```python
@@ -487,23 +487,23 @@ Edit `config.py` for:
 
 ## 📈 Performance
 
-- **Query Routing**: ~1-2 seconds
-- **SQL Execution**: ~0.5-2 seconds
-- **Vector Search**: ~1-3 seconds
-- **Policy Check**: ~0.5-1 second
-- **Total Response**: ~3-8 seconds (depends on query complexity)
+-   **Query Routing**: ~1-2 seconds
+-   **SQL Execution**: ~0.5-2 seconds
+-   **Vector Search**: ~1-3 seconds
+-   **Policy Check**: ~0.5-1 second
+-   **Total Response**: ~3-8 seconds (depends on query complexity)
 
 ## 🐛 Troubleshooting
 
 ### "No module named 'langgraph'"
 ```bash
-pip install langgraph langchain-google-genai
+pip install langgraph langchain-anthropic
 ```
 
-### "Google API key required"
-Add to `.env`:
-```
-GOOGLE_API_KEY=your_key_here
+### "Anthropic API key required"
+```bash
+# Check .env file
+ANTHROPIC_API_KEY=your_key_here
 ```
 
 ### "Database connection failed"
@@ -551,7 +551,7 @@ Extend `ExportDataIntegrator` in `export_data_integrator.py`
 
 ```python
 class ExportAdvisoryGraph:
-    def __init__(self, google_api_key: Optional[str] = None)
+    def __init__(self, api_key: Optional[str] = None)
     def query(self, user_query: str, session_id: str = "default") -> Dict[str, Any]
     def format_response(self, result: Dict[str, Any]) -> str
     def clear_session(self, session_id: str = "default") -> None
@@ -589,6 +589,6 @@ class AgentState(TypedDict):
 
 ---
 
-**Built with LangGraph, LangChain, Google Gemini, FAISS, ChromaDB, and FastAPI** 🚀  
+**Built with LangGraph, LangChain, Anthropic Claude, FAISS, ChromaDB, and FastAPI** 🚀  
 **Last Updated**: February 28, 2026  
 **Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)

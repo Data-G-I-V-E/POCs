@@ -1,6 +1,5 @@
 comtradeapicall
 pandas
-pandas
 openpyxl
 psycopg2-binary
 matplotlib
@@ -8,7 +7,7 @@ Pillow
 pytesseract
 tqdm
 python-dotenv
-google-generativeai
+anthropic
 chromadb
 tabulate
 pdf2image
@@ -16,12 +15,10 @@ pypdf
 pdfplumber
 langchain-core
 langchain-chroma
-langchain-google-genai
+langchain-anthropic
 langchain-huggingface
 langchain
-langchain-core
 langchain-community
-langchain-google-genai
 langgraph
 sentence-transformers
 unstructured[all-docs]

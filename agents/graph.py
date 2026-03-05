@@ -15,7 +15,7 @@ from datetime import datetime
 import psycopg2
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 
 from config import Config
 from export_data_integrator import ExportDataIntegrator
@@ -32,17 +32,17 @@ from .synthesizer import AnswerSynthesizer
 class ExportAdvisoryGraph:
     """Main LangGraph orchestrator"""
     
-    def __init__(self, google_api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None):
         """Initialize the graph"""
         
         # Setup LLM
-        api_key = google_api_key or Config.GOOGLE_API_KEY or os.getenv("GOOGLE_API_KEY")
+        api_key = api_key or Config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ValueError("Google API key required. Set in .env or pass as parameter.")
+            raise ValueError("Anthropic API key required. Set ANTHROPIC_API_KEY in .env or pass as parameter.")
         
-        self.llm = ChatGoogleGenerativeAI(
+        self.llm = ChatAnthropic(
             model=Config.LLM_MODEL,
-            google_api_key=api_key,
+            api_key=api_key,
             temperature=Config.LLM_TEMPERATURE
         )
         
@@ -366,7 +366,7 @@ def interactive_demo():
     except Exception as e:
         print(f"❌ Error initializing: {e}")
         print("\nMake sure you have:")
-        print("1. GOOGLE_API_KEY in .env file")
+        print("1. ANTHROPIC_API_KEY in .env file")
         print("2. Database connection working")
         print("3. Vector stores available")
         return
