@@ -9,7 +9,8 @@ This system provides intelligent export advisory services by integrating:
 - **Trade Agreements RAG Store**: 2,524 article-aware chunks from 141 FTA PDFs (FAISS + ChromaDB with cross-reference resolution)
 - **DGFT FTP RAG Store**: 413 section-aware chunks from 11 Foreign Trade Policy chapter PDFs (FAISS + ChromaDB)
 - **LLM Integration**: Anthropic Claude Sonnet 4 for intelligent query routing and synthesis
-- **Multi-Agent Architecture**: 6 specialized agents — SQL, Policy, Agreements, Vector, Combined, and Answer Synthesizer
+- **HS Master Table**: 13,407 eight-digit HS codes extracted from master PDF, searchable via full-text + fuzzy matching
+- **Multi-Agent Architecture**: 7 specialized agents — SQL, Policy, Agreements, Vector, HS Lookup, Combined, and Answer Synthesizer
 - **Smart Routing**: LLM-powered product extraction + auto-upgrade to Combined mode so ALL data sources are checked
 - **Conversation Memory**: Per-session conversation history with context-aware multi-turn support
 - **FastAPI Backend**: RESTful API with session management, trade data visualization, and restriction checks
@@ -43,38 +44,38 @@ This system provides intelligent export advisory services by integrating:
              ┌──────────────────────▼──────────────────────┐
              │              QUERY ROUTER                    │
              │  • LLM-based classification + product name   │
-             │  • HS code regex + DB lookup by description  │
+             │  • HS code regex + 13K master table lookup   │
+             │  • Full-text search on hs_master_8_digit     │
              │  • Auto-upgrade: HS+country → combined       │
-             │  • Auto-upgrade: HS+policy → combined        │
              └──┬──────┬──────┬──────┬──────┬──────┬───────┘
                 │      │      │      │      │      │
            (Router picks ONE path based on query type)
                 │      │      │      │      │      │
-         ┌──────▼──┐┌──▼───┐┌─▼────┐┌▼─────┐│ ┌────▼─────┐
-         │SQL Agent││Policy││Agree-││Vector││ │ general  │
-         │         ││Agent ││ments ││Agent ││ │(no agent)│
-         │Text→SQL ││      ││Agent ││      ││ └────┬─────┘
-         │+History ││Check:││      ││DGFT+ ││      │
-         │         ││Proh. ││FTA   ││Agree ││      │
-         │Postgres ││Rest. ││PDFs  ││PDFs  ││      │
-         │stats,   ││STE   ││Cross-││      ││      │
-         │monthly  ││ITC   ││refs  ││      ││      │
-         │views    ││Notes ││      ││      ││      │
-         └───┬─────┘└──┬───┘└──┬───┘└──┬───┘│      │
-             │         │       │       │    │      │
-             │         │       │       │ ┌──▼──────────────┐
-             │         │       │       │ │ COMBINED Agent  │
-             │         │       │       │ │ (sequential)    │
-             │         │       │       │ │                 │
-             │         │       │       │ │ 1. SQL Agent    │
-             │         │       │       │ │ 2. Policy Agent │
-             │         │       │       │ │ 3. Agreements   │
-             │         │       │       │ │    (if country) │
-             │         │       │       │ │ 4. DGFT FTP     │
-             │         │       │       │ │    retriever    │
-             │         │       │       │ └────────┬────────┘
-             │         │       │       │          │
-             └─────────┴───────┴───────┴──────────┘
+         ┌──────▼──┐┌──▼───┐┌─▼────┐┌▼─────┐┌▼──────────┐ ┌────▼─────┐
+         │SQL Agent││Policy││Agree-││Vector││HS Lookup  │ │ general  │
+         │         ││Agent ││ments ││Agent ││Agent      │ │(no agent)│
+         │Text→SQL ││      ││Agent ││      ││           │ └────┬─────┘
+         │+History ││Check:││      ││DGFT+ ││Search     │      │
+         │         ││Proh. ││FTA   ││Agree ││13K codes  │      │
+         │Postgres ││Rest. ││PDFs  ││PDFs  ││exact/FTS/ │      │
+         │stats,   ││STE   ││Cross-││      ││fuzzy      │      │
+         │monthly  ││ITC   ││refs  ││      ││           │      │
+         │views    ││Notes ││      ││      ││           │      │
+         └───┬─────┘└──┬───┘└──┬───┘└──┬───┘└─────┬─────┘     │
+             │         │       │       │          │            │
+             │         │       │       │ ┌────────────────┐    │
+             │         │       │       │ │ COMBINED Agent │    │
+             │         │       │       │ │ (sequential)   │    │
+             │         │       │       │ │                │    │
+             │         │       │       │ │ 1. SQL Agent   │    │
+             │         │       │       │ │ 2. Policy Agent│    │
+             │         │       │       │ │ 3. Agreements  │    │
+             │         │       │       │ │    (if country)│    │
+             │         │       │       │ │ 4. DGFT FTP    │    │
+             │         │       │       │ │    retriever   │    │
+             │         │       │       │ └───────┬────────┘    │
+             │         │       │       │         │             │
+             └─────────┴───────┴───────┴─────────┴─────────────┘
                                 │
               ┌─────────────────▼──────────────────┐
               │        Answer Synthesizer           │
@@ -108,6 +109,7 @@ POCs/
 │   ├── policy_agent.py           # PolicyAgent — export restriction checks
 │   ├── vector_agent.py           # VectorAgent — DGFT FTP + agreements vector search
 │   ├── agreements_agent.py       # AgreementsAgent — trade agreement search + cross-refs + article lookup
+│   ├── hs_lookup_agent.py        # HSLookupAgent — 13K HS code search (exact/prefix/FTS/fuzzy)
 │   ├── synthesizer.py            # AnswerSynthesizer — combines agent results
 │   └── graph.py                  # ExportAdvisoryGraph orchestrator + demo
 │
@@ -140,9 +142,11 @@ POCs/
 │   ├── hs_codes.sql              # HS codes table schema
 │   ├── itc_hs_schema.sql         # ITC HS products schema
 │   ├── prohibited_restricted.sql # Prohibited/restricted items schema
-│   └── ste-schema.sql            # STE items schema
+│   ├── ste-schema.sql            # STE items schema
+│   └── hs_master_loader.py       # Extracts 13K HS codes from master PDF → PostgreSQL
 │
 ├── data/                          # Source data
+│   ├── master_hs_codes.pdf        # Master HS code PDF (461 pages, 13,407 codes)
 │   ├── agreements/                # Trade agreement PDFs (AUS, UAE, UK)
 │   │   ├── australia/            # 34 PDFs (AI-ECTA chapters, annexes, schedules)
 │   │   ├── uae/                  # 39 PDFs (India-UAE CEPA)
@@ -276,14 +280,15 @@ print(graph.format_response(result2))
 
 ## 🎨 Features
 
-### ✅ Multi-Agent Routing (6 Agents + Smart Upgrade)
-- **Query Router**: LLM-powered classification with **LLM-based product name extraction** (no brittle regex — LLM understands "cows" from "i want to export cows to uae") + DB lookup in restricted/prohibited/STE/HS tables
+### ✅ Multi-Agent Routing (7 Agents + Smart Upgrade)
+- **Query Router**: LLM-powered classification with **LLM-based product name extraction** (no brittle regex — LLM understands "cows" from "i want to export cows to uae") + full-text search across **13,407 HS codes** in `hs_master_8_digit` table
 - **SQL Agent**: Text-to-SQL with full conversation history for context-aware queries
 - **Policy Agent**: Checks prohibited/restricted/STE items with prefix matching (6→8 digit) + **ITC chapter notes** (main notes, export licensing, policy conditions)
 - **Agreements Agent**: Searches trade agreement PDFs with article-level precision, auto cross-reference resolution, and direct article lookup (e.g., "Article 4.5")
 - **Vector Agent**: Searches BOTH DGFT FTP policy chapters (413 chunks) AND trade agreements (2,524 chunks)
+- **HS Lookup Agent**: Searches the 13,407-code master HS table via exact match, prefix, full-text search, and fuzzy keyword fallback. Returns multiple matches when ambiguous so the user can pick the right code
 - **Combined Agent**: Runs SQL → Policy → Agreements (if country) → DGFT FTP **sequentially** for comprehensive answers. Auto-triggered when HS code + country detected.
-- **Answer Synthesizer**: Combines results with source attribution, article/section citations, chapter notes, and markdown formatting
+- **Answer Synthesizer**: Combines results with source attribution, article/section citations, HS code disambiguation tables, chapter notes, and markdown formatting
 - **Auto-Upgrade**: Product queries with HS codes auto-upgrade to Combined mode, ensuring trade stats + policy + agreements + DGFT FTP are all checked
 
 ### ✅ Trade Agreements RAG (NEW)
@@ -439,7 +444,16 @@ Turn 4: "What about UAE?"                   ← remembers context
 "What SPS measures are in the India-UAE CEPA?"
 ```
 
-**5. Combined Queries** (Multi-agent — SQL + Policy + Agreements together)
+**5. HS Lookup Queries** (Finding 8-digit HS codes by product description)
+```
+"What is the HS code for mangoes?"
+"What HS codes cover edible fruit and nuts?"
+"Find HS classification for electronic cigarettes"
+"Which chapter does basmati rice fall under?"
+"Show all 8-digit codes for cotton T-shirts"
+```
+
+**6. Combined Queries** (Multi-agent — SQL + Policy + Agreements together)
 ```
 "Can I export vegetables to Australia and what does the trade agreement say about tariff benefits?"
 "Show me export data AND restrictions AND agreement provisions for chapter 07"
@@ -480,7 +494,7 @@ COUNTRY_CODES = {
 ## 🎯 Data Statistics
 
 ### Current Coverage
-- **HS Codes**: 31 focus codes tracked in `hs_codes` table (2,006 in `itc_hs_products`)
+- **HS Master Codes**: 13,407 eight-digit codes across 97 chapters in `hs_master_8_digit` (+ 31 focus codes in `hs_codes`, 2,006 in `itc_hs_products`)
 - **HS Codes with Policy References**: 57
 - **Export Statistics**: Multi-year data for 3 countries
 - **Prohibited Items**: Complete list
@@ -520,11 +534,12 @@ COUNTRY_CODES = {
 - PostgreSQL database with unified views
 - Policy references system (57 codes)
 - Export data integrator with prefix matching
-- LangGraph multi-agent system with conversation memory (6 agents)
+- LangGraph multi-agent system with conversation memory (7 agents)
 - SQL Agent (text-to-SQL with schema context + history) — `agents/sql_agent.py`
 - Policy Agent (export feasibility checks with prefix matching) — `agents/policy_agent.py`
 - Agreements Agent (trade agreement search + cross-ref resolution) — `agents/agreements_agent.py`
 - Vector Agent (DGFT policies) — `agents/vector_agent.py`
+- HS Lookup Agent (13,407-code master HS table, exact/FTS/fuzzy) — `agents/hs_lookup_agent.py`
 - Combined Agent (SQL + Policy + Agreements for complex queries) — `agents/graph.py`
 - Answer Synthesizer (markdown output + source attribution) — `agents/synthesizer.py`
 - FastAPI backend with full REST API
@@ -578,6 +593,6 @@ Developed as part of PPL+AI internship assignment.
 
 ---
 
-**Last Updated**: March 3, 2026  
-**System Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)  
-**Status**: ✅ Fully Operational (modular agents/ package, 6 agents, Agreements RAG + DGFT FTP RAG live, Smart Combined routing, LLM product extraction, FastAPI + Web UI, Memory enabled)
+**Last Updated**: March 8, 2026
+**System Version**: 6.1 (HS Lookup Agent wired as graph node + HS_LOOKUP routing)
+**Status**: ✅ Fully Operational (modular agents/ package, 7 agents wired in graph, 13K HS master codes, Agreements RAG + DGFT FTP RAG live, Smart Combined routing, HS_LOOKUP route, LLM product extraction, FastAPI + Web UI, Memory enabled)

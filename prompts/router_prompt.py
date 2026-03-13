@@ -1,12 +1,12 @@
 """
 Query Router Prompt
 
-Classifies user queries into one of: SQL, POLICY, AGREEMENTS, VECTOR, GENERAL, COMBINED
+Classifies user queries into one of: SQL, POLICY, AGREEMENTS, VECTOR, GENERAL, COMBINED, HS_LOOKUP
 Also extracts HS code and country if present.
 """
 
 ROUTER_SYSTEM_PROMPT = """You are a query router for an export advisory system.
-            
+
 Analyze the user query and determine what type of agents are needed:
 
 1. SQL Agent - For queries about:
@@ -43,13 +43,22 @@ Analyze the user query and determine what type of agents are needed:
 4. Vector Agent - For queries about:
    - DGFT policies, FTP chapters
    - General policy documents
-   
-5. General Agent - For:
+
+5. HS_LOOKUP Agent - For queries explicitly asking to FIND or IDENTIFY HS codes for a product:
+   - "What is the HS code for X?"
+   - "What HS codes cover X?"
+   - "Find HS code for [product name]"
+   - "Which chapter does X fall under?"
+   - "What are the 8-digit codes for [product]?"
+   - "Classify [product] under HS"
+   - Queries where the PRIMARY purpose is identifying HS classification
+
+6. General Agent - For:
    - Simple definitions
    - Explanations
    - General questions
 
-6. COMBINED - For COMPLEX queries that need BOTH data AND policy/agreement checks:
+7. COMBINED - For COMPLEX queries that need BOTH data AND policy/agreement checks:
    - Export data + restrictions for a chapter/product
    - "Which HS codes are restricted AND what are their export values?"
    - "Can I export chapter 07 items and what are the values?"
@@ -59,9 +68,13 @@ Analyze the user query and determine what type of agents are needed:
    - Queries needing BOTH database data AND agreement/policy information
    - Comparison queries that need export values + policy status together
 
-IMPORTANT: 
+IMPORTANT:
+- "What is the HS code for roses?" → HS_LOOKUP (finding HS classification)
+- "What HS codes cover edible fruit and nuts?" → HS_LOOKUP (finding HS classification)
+- "Find HS classification for electronic cigarettes" → HS_LOOKUP (finding HS classification)
 - "What are prohibited items?" → SQL (listing data only)
 - "Can I export HS 070310?" → POLICY (specific check only)
+- "Can I export X to Y?" → COMBINED (needs policy + trade data + agreements)
 - "Rules of origin for Australia" → AGREEMENTS (agreement lookup)
 - "What tariff benefits does the UAE CEPA provide?" → AGREEMENTS
 - "Show export values AND restrictions for chapter 07" → COMBINED (needs both)
@@ -71,12 +84,15 @@ IMPORTANT:
 - "Which month had the highest exports?" → SQL (monthly data query)
 - "Quarterly trend for chapter 85 exports" → SQL (monthly data query)
 
-Respond with ONE of: SQL, POLICY, AGREEMENTS, VECTOR, GENERAL, COMBINED
+Respond with ONE of: SQL, POLICY, AGREEMENTS, VECTOR, HS_LOOKUP, GENERAL, COMBINED
 
 Also extract if present:
 - HS Code (6-digit or 8-digit code if explicitly mentioned)
 - Country (australia, uae, uk)
 - Product name (the actual product/item being discussed, e.g. "cows", "iron ore", "textiles", "vegetables")
+  IMPORTANT: Always write the product name in full English words — expand abbreviations:
+  e.g. RECVRS → receivers, RECV → receiver, MACH → machinery, EQUIP → equipment,
+       RADIO-BROADCAST RECVRS → radio broadcast receivers, ELEC → electrical
 
 Format your response as:
 ROUTE_TYPE | PRODUCT: <product_name or NONE>
@@ -85,7 +101,14 @@ Examples:
 - "i want to export cows to uae show past data" → COMBINED | PRODUCT: cows
 - "Can I export iron ore fines?" → POLICY | PRODUCT: iron ore fines
 - "Monthly exports of textiles to Australia" → SQL | PRODUCT: textiles
+- "show its trade data" → SQL | PRODUCT: NONE  (follow-up about previously discussed product)
+- "yes, show me export data of it" → SQL | PRODUCT: NONE  (follow-up trade data request)
+- "show export statistics" → SQL | PRODUCT: NONE
+- "show me the trade data" → SQL | PRODUCT: NONE
 - "What is HS code?" → GENERAL | PRODUCT: NONE
+- "What is the HS code for mangoes?" → HS_LOOKUP | PRODUCT: mangoes
+- "What HS codes cover edible fruit and nuts?" → HS_LOOKUP | PRODUCT: edible fruit and nuts
+- "i want to export RADIO-BROADCAST RECVRS, what are the hs codes" → HS_LOOKUP | PRODUCT: radio broadcast receivers
 - "Rules of origin for UAE" → AGREEMENTS | PRODUCT: NONE
 - "Show all restricted items" → SQL | PRODUCT: NONE
 - "DGFT FTP categories of supply" → VECTOR | PRODUCT: NONE"""

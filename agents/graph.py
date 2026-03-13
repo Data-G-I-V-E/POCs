@@ -26,6 +26,7 @@ from .sql_agent import SQLAgent
 from .policy_agent import PolicyAgent
 from .vector_agent import VectorAgent
 from .agreements_agent import AgreementsAgent
+from .hs_lookup_agent import HSLookupAgent
 from .synthesizer import AnswerSynthesizer
 
 
@@ -52,6 +53,7 @@ class ExportAdvisoryGraph:
         self.policy_agent = PolicyAgent()
         self.vector_agent = VectorAgent()
         self.agreements_agent = AgreementsAgent()
+        self.hs_lookup_agent = HSLookupAgent()
         self.synthesizer = AnswerSynthesizer(self.llm)
         
         # Session-based conversation memory
@@ -197,11 +199,12 @@ class ExportAdvisoryGraph:
         workflow.add_node("vector", self.vector_agent.execute)
         workflow.add_node("agreements", self.agreements_agent.execute)
         workflow.add_node("combined", self._combined_execute)
+        workflow.add_node("hs_lookup", self.hs_lookup_agent.execute)
         workflow.add_node("synthesizer", self.synthesizer.execute)
-        
+
         # Set entry point
         workflow.set_entry_point("router")
-        
+
         # Add conditional edges from router
         workflow.add_conditional_edges(
             "router",
@@ -212,16 +215,18 @@ class ExportAdvisoryGraph:
                 "vector": "vector",
                 "agreements": "agreements",
                 "combined": "combined",
+                "hs_lookup": "hs_lookup",
                 "general": "synthesizer"
             }
         )
-        
+
         # All agents go to synthesizer
         workflow.add_edge("sql", "synthesizer")
         workflow.add_edge("policy", "synthesizer")
         workflow.add_edge("vector", "synthesizer")
         workflow.add_edge("agreements", "synthesizer")
         workflow.add_edge("combined", "synthesizer")
+        workflow.add_edge("hs_lookup", "synthesizer")
         
         # Synthesizer is the end
         workflow.add_edge("synthesizer", END)
@@ -254,10 +259,13 @@ class ExportAdvisoryGraph:
             "query_type": None,
             "hs_code": None,
             "country": None,
+            "product_name": None,
             "sql_results": None,
             "vector_results": None,
             "policy_results": None,
             "agreement_results": None,
+            "hs_lookup_results": None,
+            "needs_clarification": None,
             "final_answer": None,
             "sources": [],
             "next_agent": None

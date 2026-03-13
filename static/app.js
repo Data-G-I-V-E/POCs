@@ -316,7 +316,9 @@ function getQueryTypeLabel(type) {
         'policy': '📋 Policy Check',
         'vector': '🔍 Document Search',
         'general': '💬 General',
-        'combined': '🔗 Multi-Agent'
+        'combined': '🔗 Multi-Agent',
+        'agreements': '📜 Agreements',
+        'hs_lookup': '🔎 HS Lookup'
     };
     return labels[type] || `📌 ${type}`;
 }
@@ -349,6 +351,12 @@ function formatSource(source) {
         return `HS: ${source.hs_code || 'N/A'} → ${country}`;
     } else if (source.type === 'vector_search') {
         return `${source.store || 'vector'} (${source.num_results || '?'} results)`;
+    } else if (source.type === 'hs_master_lookup') {
+        const ambig = source.is_ambiguous ? ' (AMBIGUOUS)' : '';
+        return `${source.matches_found || 0} matches for "${source.search_term || '?'}"${ambig}`;
+    } else if (source.type === 'trade_agreements') {
+        const agreements = source.agreements?.join(', ') || 'N/A';
+        return `${source.num_results || '?'} results from ${agreements}`;
     }
     return escapeHtml(JSON.stringify(source));
 }
@@ -397,88 +405,169 @@ async function handleClearSession() {
 
 function shouldShowVisualization(query, response) {
     const hasSqlResults = response.query_type === 'sql' ||
+        response.query_type === 'combined' ||
         response.sources?.some(s => s.type === 'sql');
     const hasHsCode = response.hs_code != null;
 
     // Keywords suggesting trade data visualization
-    const vizKeywords = ['statistic', 'trade data', 'export value', 'export data', 'chart', 'graph'];
+    const vizKeywords = [
+        'statistic', 'trade data', 'export value', 'export data',
+        'chart', 'graph', 'trend', 'data', 'monthly', 'quarterly',
+        'export', 'import', 'trade', 'restriction', 'can i export'
+    ];
     const queryLower = query.toLowerCase();
     const queryWantsViz = vizKeywords.some(kw => queryLower.includes(kw));
+
+    // Always show viz for combined/sql routes with an HS code
+    if (hasHsCode && hasSqlResults) return true;
 
     return (hasSqlResults || hasHsCode) && (hasSqlResults || queryWantsViz);
 }
 
 async function updateVisualization(response) {
     try {
-        let hsCode = response.hs_code;
+        const vizSection = document.getElementById('viz-section');
+        const placeholder = document.getElementById('chart-placeholder');
+        const canvas = document.getElementById('trade-chart');
 
-        // If no HS code in response, try to extract from answer text
-        if (!hsCode) {
-            const hsMatch = response.answer.match(/HS\s*(?:Code\s*)?(\d{6,8})/i);
-            if (hsMatch) hsCode = hsMatch[1];
+        // Show section, reset state
+        if (vizSection) vizSection.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+        if (canvas) canvas.style.display = 'block';
+        chartInfo.style.display = 'block';
+
+        // --- Collect HS code candidates (6-8 digit) ---
+        const hsCandidates = [];
+
+        if (response.hs_code) hsCandidates.push(response.hs_code);
+
+        if (response.answer) {
+            // Match standalone 6-8 digit numbers (word boundary prevents partial matches)
+            for (const m of response.answer.matchAll(/\b(\d{6,8})\b/g)) {
+                const code = m[1];
+                if (!code.startsWith('202') && !code.startsWith('201') &&
+                    !code.startsWith('200') && !hsCandidates.includes(code)) {
+                    hsCandidates.push(code);
+                }
+            }
         }
 
-        if (!hsCode) {
-            console.log('No HS code found for visualization');
+        // --- Collect chapter candidates (2-digit, e.g. "07", "08") ---
+        const chapterCandidates = [];
+
+        // Derive chapters from every HS code collected
+        for (const code of hsCandidates) {
+            if (code.length >= 2) {
+                const ch = code.substring(0, 2);
+                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+            }
+        }
+
+        // Also extract chapters from "Chapter X" / "Ch. X" mentions in the answer
+        if (response.answer) {
+            for (const m of response.answer.matchAll(/\b(?:chapter|ch\.?)\s*(\d{1,2})\b/gi)) {
+                const ch = m[1].padStart(2, '0');
+                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+            }
+        }
+
+        if (hsCandidates.length === 0 && chapterCandidates.length === 0) {
+            console.log('No HS code or chapter found for visualization');
+            if (vizSection) vizSection.style.display = 'none';
             return;
         }
 
-        // Show visualization section
-        const vizSection = document.getElementById('viz-section');
-        if (vizSection) {
-            vizSection.style.display = 'block';
-        }
+        let chartRendered = false;
 
-        // Hide placeholder
-        const placeholder = document.getElementById('chart-placeholder');
-        if (placeholder) placeholder.style.display = 'none';
-
-        // Show chart info
-        chartInfo.style.display = 'block';
-
-        // Try monthly data first
-        let hasMonthly = false;
-        try {
-            const monthlyData = await getMonthlyTradeData(hsCode);
-            if (monthlyData.months && monthlyData.months.length > 0 &&
-                Object.keys(monthlyData.monthly_data).length > 0) {
-                hasMonthly = true;
-                // Create monthly table + line chart
-                const tableHtml = createMonthlyDataTable(monthlyData, hsCode);
-                chartDetails.innerHTML = `
-                    <p><strong>HS Code:</strong> ${hsCode}</p>
-                    <p style="margin-bottom:0.5rem;"><strong>Monthly Export Trend (2024):</strong></p>
-                    ${tableHtml}
-                    <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                        Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
-                    </p>
-                `;
-                createLineChart(monthlyData, hsCode);
-            }
-        } catch (err) {
-            console.log('Monthly data not available, falling back to annual:', err.message);
-        }
-
-        // Fallback to annual bar chart if no monthly data
-        if (!hasMonthly) {
-            const data = await getTradeData(hsCode);
-            if (!data.data || data.data.length === 0) {
-                console.log('No trade data available for visualization');
-                return;
-            }
-            const tableHtml = createDataTable(data.data, hsCode);
+        // Helper: render monthly chart + details table
+        function renderMonthly(monthlyData, label) {
+            chartRendered = true;
             chartDetails.innerHTML = `
-                <p><strong>HS Code:</strong> ${hsCode}</p>
+                <p><strong>HS Code / Chapter:</strong> ${label}</p>
+                <p style="margin-bottom:0.5rem;"><strong>Monthly Export Trend (2024):</strong></p>
+                ${createMonthlyDataTable(monthlyData, label)}
+                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
+                    Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
+                </p>
+            `;
+            // Delay chart creation so the browser can lay out the container first
+            setTimeout(() => createLineChart(monthlyData, label), 50);
+        }
+
+        // Helper: render annual bar chart + details table
+        function renderAnnual(data, label) {
+            chartRendered = true;
+            chartDetails.innerHTML = `
+                <p><strong>HS Code / Chapter:</strong> ${label}</p>
                 <p style="margin-bottom:0.5rem;"><strong>Export Data by Country (Annual):</strong></p>
-                ${tableHtml}
+                ${createDataTable(data.data, label)}
                 <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
                     Last Updated: ${new Date(data.timestamp).toLocaleString()}
                 </p>
             `;
-            createBarChart(data.data, hsCode);
+            setTimeout(() => createBarChart(data.data, label), 50);
         }
 
-        // Scroll to visualization
+        // --- Pass 1: Try exact HS codes ---
+        for (const hsCode of hsCandidates) {
+            if (chartRendered) break;
+            try {
+                const d = await getMonthlyTradeData(hsCode, null);
+                if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
+                    renderMonthly(d, hsCode); break;
+                }
+            } catch (e) { console.log(`Monthly HS ${hsCode}: ${e.message}`); }
+
+            try {
+                const d = await getTradeData(hsCode, null);
+                if (d.data?.length > 0) {
+                    renderAnnual(d, hsCode); break;
+                }
+            } catch (e) { console.log(`Annual HS ${hsCode}: ${e.message}`); }
+        }
+
+        // --- Pass 2: Try chapter-level queries (uses proper 'chapter' param) ---
+        if (!chartRendered) {
+            for (const ch of chapterCandidates) {
+                if (chartRendered) break;
+                try {
+                    const d = await getMonthlyTradeData(null, ch);
+                    if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
+                        renderMonthly(d, `Chapter ${ch}`); break;
+                    }
+                } catch (e) { console.log(`Monthly chapter ${ch}: ${e.message}`); }
+
+                try {
+                    const d = await getTradeData(null, ch);
+                    if (d.data?.length > 0) {
+                        renderAnnual(d, `Chapter ${ch}`); break;
+                    }
+                } catch (e) { console.log(`Annual chapter ${ch}: ${e.message}`); }
+            }
+        }
+
+        // --- No data found ---
+        if (!chartRendered) {
+            if (canvas) canvas.style.display = 'none';
+            if (placeholder) {
+                placeholder.style.display = 'flex';
+                const tried = [
+                    ...hsCandidates.map(c => `HS ${c}`),
+                    ...chapterCandidates.map(c => `Ch.${c}`)
+                ];
+                placeholder.innerHTML = `
+                    <p style="font-size:1.1rem;">📊 No chart data available</p>
+                    <p class="chart-hint">
+                        Tried: ${tried.slice(0, 6).join(', ')}${tried.length > 6 ? '...' : ''}<br>
+                        Charts are available for the 31 focus HS codes tracked in the system.<br>
+                        Detailed statistics are shown in the answer above.
+                    </p>
+                `;
+            }
+            chartDetails.innerHTML = '';
+            chartInfo.style.display = 'none';
+        }
+
         vizSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     } catch (error) {

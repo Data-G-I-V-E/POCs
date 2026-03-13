@@ -15,25 +15,26 @@ A sophisticated multi-agent system using **LangGraph** that intelligently routes
 ┌─────────────────────────────────────────────────────────────┐
 │                   QUERY ROUTER                               │
 │  Analyzes query and determines appropriate agent(s)         │
-│  - Extracts HS code, country                                │
-│  - Routes to: SQL/POLICY/AGREEMENTS/VECTOR/COMBINED/GENERAL │
-└───┬────────┬────────┬──────────┬──────────┬─────────────────┘
-    │        │        │          │          │
-    ▼        ▼        ▼          ▼          ▼
-┌───────┐┌──────┐┌──────────┐┌──────┐┌────────────────────┐
-│ SQL   ││POLICY││AGREEMENTS││VECTOR││  COMBINED AGENT    │
-│ AGENT ││AGENT ││AGENT     ││AGENT ││                    │
-│       ││      ││          ││      ││ 1. Runs SQL Agent  │
-│Text→  ││Check:││Search:   ││Search││ 2. Runs Policy     │
-│SQL    ││Proh. ││FTA text  ││DGFT  ││    Agent           │
-│Query  ││Rest. ││Rules of  ││Policy││ 3. Runs Agreements │
-│       ││STE   ││Origin    ││      ││    Agent (if       │
-│       ││      ││Tariffs   ││      ││    country found)  │
-│       ││      ││Cross-refs││      ││ 4. Feeds all to    │
-│       ││      ││          ││      ││    synthesizer     │
-└───┬───┘└──┬───┘└────┬─────┘└──┬───┘└────────┬───────────┘
-    │       │         │         │             │
-    └───────┴─────────┴────┬────┴─────────────┘
+│  - Extracts HS code, country, product name (LLM-based)     │
+│  - Routes to: SQL/POLICY/AGREEMENTS/VECTOR/                 │
+│              HS_LOOKUP/COMBINED/GENERAL                     │
+└───┬───────┬───────┬─────────┬─────────┬──────┬─────────────┘
+    │       │       │         │         │      │
+    ▼       ▼       ▼         ▼         ▼      ▼
+┌──────┐┌──────┐┌──────────┐┌──────┐┌────────┐┌────────────────────┐
+│ SQL  ││POLICY││AGREEMENTS││VECTOR││HS      ││  COMBINED AGENT    │
+│AGENT ││AGENT ││AGENT     ││AGENT ││LOOKUP  ││                    │
+│      ││      ││          ││      ││AGENT   ││ 1. Runs SQL Agent  │
+│Text→ ││Check:││Search:   ││Search││        ││ 2. Runs Policy     │
+│SQL   ││Proh. ││FTA text  ││DGFT  ││Search  ││    Agent           │
+│Query ││Rest. ││Rules of  ││Policy││13,407  ││ 3. Runs Agreements │
+│      ││STE   ││Origin    ││      ││HS codes││    Agent (if       │
+│      ││      ││Tariffs   ││      ││exact/  ││    country found)  │
+│      ││      ││Cross-refs││      ││FTS/    ││ 4. Feeds all to    │
+│      ││      ││          ││      ││fuzzy   ││    synthesizer     │
+└──┬───┘└──┬───┘└────┬─────┘└──┬───┘└───┬────┘└────────┬───────────┘
+   │       │         │         │        │              │
+   └───────┴─────────┴────┬────┴────────┴──────────────┘
                            │
                            ▼
            ┌───────────────────────────────┐
@@ -59,7 +60,8 @@ A sophisticated multi-agent system using **LangGraph** that intelligently routes
 - Analyzes user intent
 - Extracts entities (HS codes, countries)
 - **LLM-based product extraction**: The LLM outputs `ROUTE_TYPE | PRODUCT: <name>` — no brittle phrase stripping. "i want to export cows to uae show past data" → extracts "cows" automatically
-- **DB lookup**: Uses extracted product name to search `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` by description (ILIKE)
+- **DB lookup**: Uses extracted product name to search **`hs_master_8_digit` (13,407 codes)** via full-text search, then falls back to `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products`
+- **Ambiguity handling**: When multiple HS codes match (e.g., "plants" → 10+ results), all matches are stored in state so the synthesizer can present them to the user
 - **Auto-upgrade**: When HS code + country detected, upgrades route from `policy`/`sql` to `combined` so ALL agents fire
 - Routes to appropriate specialist agents
 - Powered by Anthropic Claude Sonnet 4
@@ -355,9 +357,10 @@ The router uses LLM-based classification:
 |---------------|-----------|----------|
 | "how many", "total", "statistics" | SQL Agent | "What is total export value?" |
 | "monthly", "trend", "quarterly", "best month" | SQL Agent | "Monthly exports of textiles to UAE" |
-| "can I export", "allowed", "prohibited" | Policy Agent | "Can I export HS 070310?" |
+| "can I export", "allowed", "prohibited" (specific HS) | Policy Agent | "Can I export HS 070310?" |
 | "rules of origin", "tariff benefits", "FTA", "ECTA", "CEPA", "customs procedures" | **Agreements Agent** | "Rules of origin for textiles to Australia" |
 | "DGFT", "FTP", "categories of supply", "deemed exports" | **Vector Agent** | "Categories of supply under DGFT FTP" |
+| "what HS code", "find HS", "classify", "which chapter" | **HS Lookup Agent** | "What HS codes cover edible nuts?" |
 | Data + policy/restrictions + agreements together | **Combined Agent** | "Show export values AND agreement benefits for chapter 07" |
 | HS code detected (auto-upgrade from policy/sql) | **Combined Agent** | "Can I export HS 070310 to Australia?" |
 | General questions | Synthesizer | "What is HS code?" |
@@ -365,7 +368,7 @@ The router uses LLM-based classification:
 ## 🎨 Features
 
 ### ✅ Multi-Agent Orchestration
-- Intelligent query routing (6 route types: SQL, Policy, Agreements, Vector, Combined, General)
+- Intelligent query routing (7 route types: SQL, Policy, Agreements, Vector, HS_Lookup, Combined, General)
 - **Smart auto-upgrade**: Product queries with HS codes automatically upgrade to Combined
 - Combined agent runs ALL 4 agents (SQL + Policy + Agreements + DGFT FTP) for comprehensive answers
 - Result aggregation from multiple sources
@@ -566,13 +569,14 @@ class ExportAdvisoryGraph:
 class AgentState(TypedDict):
     messages: Sequence[BaseMessage]  # Full conversation history for context
     user_query: str
-    query_type: str                  # 'sql', 'vector', 'policy', 'agreements', 'general', 'combined'
+    query_type: str                  # 'sql', 'vector', 'policy', 'agreements', 'hs_lookup', 'general', 'combined'
     hs_code: Optional[str]
     country: Optional[str]
     sql_results: Optional[Dict]
     vector_results: Optional[List[Dict]]
     policy_results: Optional[Dict]
     agreement_results: Optional[List[Dict]]  # Trade agreement search results
+    hs_lookup_results: Optional[Dict]        # HS master 8-digit lookup results (13,407 codes)
     final_answer: Optional[str]
     sources: List[Dict[str, Any]]
     next_agent: Optional[str]
@@ -590,5 +594,5 @@ class AgentState(TypedDict):
 ---
 
 **Built with LangGraph, LangChain, Anthropic Claude, FAISS, ChromaDB, and FastAPI** 🚀  
-**Last Updated**: February 28, 2026  
-**Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)
+**Last Updated**: March 8, 2026
+**Version**: 6.1 (HS Lookup Agent wired as graph node + HS_LOOKUP route)

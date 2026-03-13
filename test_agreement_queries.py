@@ -2,12 +2,16 @@
 Test Queries for the Enhanced Export Advisory System
 =====================================================
 
-Tests the AgreementsAgent integration with the LangGraph multi-agent system.
+Tests ALL agents in the LangGraph multi-agent system.
 Covers:
   1. Direct agreement queries (routes to AgreementsAgent)
   2. Combined queries (SQL + Policy + Agreements)
   3. Policy queries that should also surface restrictions
   4. Cross-reference resolution in agreements
+  5. HS master lookup (ambiguous + exact)
+  6. Product-name → full pipeline (HS lookup → Combined)
+  7. Vector/DGFT FTP search
+  8. Multi-turn conversation memory
 
 Usage:
     python test_agreement_queries.py           # Run all test queries
@@ -159,6 +163,100 @@ TEST_QUERIES = [
         "description": "Tests certificate of origin search in UK CETA Annex 3C",
         "should_mention": ["certificate", "origin", "UK"],
     },
+
+    # ─────────────────────────────────────────────────────────────
+    # GROUP 7: HS MASTER LOOKUP (should route to → combined/policy)
+    # Tests the new hs_master_8_digit table (13,407 codes)
+    # ─────────────────────────────────────────────────────────────
+    {
+        "query": "What is the HS code for roses?",
+        "expected_route": "combined",
+        "description": "Tests HS master lookup — specific product (should find 6024000 ROSES)",
+        "should_mention": ["6024000", "rose"],
+    },
+    {
+        "query": "What is the HS code for honey?",
+        "expected_route": "combined",
+        "description": "Tests HS master lookup — specific product (should find 4090000 NATURAL HONEY)",
+        "should_mention": ["4090000", "honey"],
+    },
+    {
+        "query": "What are the HS codes for plants?",
+        "expected_route": "combined",
+        "description": "Tests AMBIGUOUS HS lookup — 'plants' matches 10+ codes, should show a table",
+        "should_mention": ["plant"],
+    },
+    {
+        "query": "HS code for mushrooms?",
+        "expected_route": "combined",
+        "description": "Tests HS master lookup — should find MUSHROOM SPAWN etc.",
+        "should_mention": ["mushroom"],
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # GROUP 8: PRODUCT NAME → FULL PIPELINE (HS lookup + Combined)
+    # User gives a product name, system resolves HS code, then
+    # runs SQL + Policy + Agreements + DGFT FTP agents
+    # ─────────────────────────────────────────────────────────────
+    {
+        "query": "Can I export roses to Australia? Show trade data and any restrictions.",
+        "expected_route": "combined",
+        "description": "Tests full pipeline: product name → HS lookup → SQL + Policy + Agreements",
+        "should_mention": ["rose", "Australia"],
+    },
+    {
+        "query": "I want to export natural honey to UAE, what are the rules?",
+        "expected_route": "combined",
+        "description": "Tests product name → HS 4090000 → combined (policy + agreements + SQL)",
+        "should_mention": ["honey", "UAE"],
+    },
+    {
+        "query": "Can I export cactus to UK? Any restrictions or tariff benefits?",
+        "expected_route": "combined",
+        "description": "Tests product name → HS 6022020 CACTUS → Combined flow with UK CETA lookup",
+        "should_mention": ["cactus", "UK"],
+    },
+    {
+        "query": "Export potatoes to Australia with all details",
+        "expected_route": "combined",
+        "description": "Tests product name → HS 7011000 POTATO SEEDS → Combined with Australia ECTA",
+        "should_mention": ["potato", "Australia"],
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # GROUP 9: VECTOR SEARCH / DGFT FTP (should route to → vector)
+    # ─────────────────────────────────────────────────────────────
+    {
+        "query": "What does DGFT say about export licensing procedures?",
+        "expected_route": "vector",
+        "description": "Tests DGFT FTP vector search for licensing procedures",
+        "should_mention": ["licens", "DGFT"],
+    },
+    {
+        "query": "What are the DGFT foreign trade policy provisions for special economic zones?",
+        "expected_route": "vector",
+        "description": "Tests DGFT FTP vector search for SEZ provisions",
+        "should_mention": ["special economic zone"],
+    },
+
+    # ─────────────────────────────────────────────────────────────
+    # GROUP 10: MULTI-TURN MEMORY (uses same session_id)
+    # These MUST run in order within the same session
+    # ─────────────────────────────────────────────────────────────
+    {
+        "query": "Can I export HS 6031100 to UAE?",
+        "expected_route": "combined",
+        "description": "Multi-turn STEP 1: Initial query about roses (HS 6031100) to UAE",
+        "should_mention": ["6031100"],
+        "session_id": "multi_turn_test",
+    },
+    {
+        "query": "What about to Australia instead?",
+        "expected_route": "combined",
+        "description": "Multi-turn STEP 2: Follow-up changing country — agent should remember HS code",
+        "should_mention": ["Australia"],
+        "session_id": "multi_turn_test",
+    },
 ]
 
 
@@ -177,14 +275,14 @@ def run_tests(quick_mode=False, interactive_after=False):
     # Initialize the system
     print("Initializing multi-agent system...")
     try:
-        from langgraph_export_agent import ExportAdvisoryGraph
+        from agents import ExportAdvisoryGraph
         graph = ExportAdvisoryGraph()
         print("✓ System ready!\n")
     except Exception as e:
         print(f"❌ Failed to initialize: {e}")
         print("\nMake sure you have:")
-        print("  1. GOOGLE_API_KEY in .env")
-        print("  2. Database running")
+        print("  1. ANTHROPIC_API_KEY in .env")
+        print("  2. Database running (with hs_master_8_digit table)")
         print("  3. agreements_rag_store/ built (run agreements_ingest_enhanced.py)")
         return
     
@@ -202,7 +300,8 @@ def run_tests(quick_mode=False, interactive_after=False):
         
         try:
             start = time.time()
-            result = graph.query(test["query"], session_id=f"test_{i}")
+            session_id = test.get("session_id", f"test_{i}")
+            result = graph.query(test["query"], session_id=session_id)
             elapsed = time.time() - start
             
             # Check routing
@@ -240,6 +339,10 @@ def run_tests(quick_mode=False, interactive_after=False):
                     print(f"    🗄️  {src_type}: {src.get('database', 'N/A')}")
                 elif src_type == "policy_check":
                     print(f"    📋 {src_type}: HS={src.get('hs_code', 'N/A')}, Country={src.get('country', 'N/A')}")
+                elif src_type == "hs_master_lookup":
+                    matches = src.get('matches_found', 0)
+                    ambig = " (AMBIGUOUS)" if src.get('is_ambiguous') else ""
+                    print(f"    🔍 {src_type}: {matches} matches for '{src.get('search_term', '?')}'{ambig}")
                 else:
                     print(f"    📎 {src_type}")
             

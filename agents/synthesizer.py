@@ -125,6 +125,61 @@ class AnswerSynthesizer:
             
             vector_summary = "\n\n".join(parts)
         
+        # Build HS lookup summary
+        hs_lookup_summary = "NOT CHECKED — HS lookup was not invoked for this query."
+        if state.get("hs_lookup_results"):
+            hs_data = state["hs_lookup_results"]
+            if hs_data.get("success") and hs_data.get("results") is not None:
+                matches      = hs_data["results"]
+                c_type       = hs_data.get("clarification_type")   # "no_match"|"confirm_one"|"pick_one"|"too_broad"|None
+                c_msg        = hs_data.get("clarification_message", "")
+                needs_cls    = hs_data.get("needs_clarification", False)
+                search_term  = hs_data.get("search_term", "")
+
+                if c_type == "no_match":
+                    hs_lookup_summary = (
+                        f"NO RESULTS — Search for '{search_term}' returned 0 matches.\n"
+                        f"CLARIFICATION NEEDED: {c_msg}"
+                    )
+                elif c_type in ("pick_one", "confirm_one"):
+                    lines = [
+                        f"CLARIFICATION NEEDED ({c_type.upper()}): {c_msg}",
+                        "",
+                        "| HS Code | Chapter | Level | Description | Confidence |",
+                        "|---------|---------|-------|-------------|------------|",
+                    ]
+                    level_label = {1: "Heading", 2: "Subheading", 3: "Tariff line"}
+                    for m in matches[:8]:
+                        lvl   = level_label.get(m.get("code_level", 3), "Code")
+                        score = f"{m.get('score', 0):.0%}"
+                        desc  = m["description"][:70]
+                        lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {lvl} | {desc} | {score} |")
+                    hs_lookup_summary = "\n".join(lines)
+                elif c_type == "too_broad":
+                    lines = [
+                        f"TOO MANY RESULTS ({hs_data['count']}) — too broad to list. {c_msg}",
+                        "",
+                        "Sample matches (top 5):",
+                        "| HS Code | Chapter | Description |",
+                        "|---------|---------|-------------|",
+                    ]
+                    for m in matches[:5]:
+                        lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {m['description'][:60]} |")
+                    hs_lookup_summary = "\n".join(lines)
+                else:
+                    # No clarification needed — single good match (or old-format ambiguous)
+                    parts = [f"Search term: {search_term}", f"Matches found: {hs_data.get('count', 0)}"]
+                    if hs_data.get("is_ambiguous"):
+                        parts.append("AMBIGUOUS — Multiple HS codes match. Present ALL options to user.")
+                    for m in matches[:20]:
+                        ch  = m.get("chapter", "?")
+                        lvl = {1: "heading", 2: "subheading", 3: "tariff"}.get(m.get("code_level", 3), "")
+                        parts.append(f"  HS {m['hs_code']} (Ch-{ch}{', ' + lvl if lvl else ''}): {m['description']}")
+                    hs_lookup_summary = "\n".join(parts)
+
+                # Propagate flag to state so the caller (app.py) can detect it
+                state["needs_clarification"] = needs_cls
+        
         # Build agreement summary
         agreement_summary = "NOT CHECKED — Agreements agent was not invoked for this query."
         if state.get("agreement_results"):
@@ -165,7 +220,8 @@ class AnswerSynthesizer:
             "sql_results": sql_summary,
             "policy_results": policy_summary,
             "vector_results": vector_summary,
-            "agreement_results": agreement_summary
+            "agreement_results": agreement_summary,
+            "hs_lookup_results": hs_lookup_summary
         })
         
         state["final_answer"] = final_answer
