@@ -118,6 +118,22 @@ class QueryRouter:
                 query_type = "combined"
             elif hs_code and query_type == "policy":
                 query_type = "combined"
+
+        # ── Post-HS-lookup follow-up upgrade ──
+        # If the user just finished a HS lookup flow and is now asking about
+        # restrictions / export rules / policy — route to combined so the
+        # policy + SQL + agreements agents all fire.
+        POLICY_FOLLOWUP_KEYWORDS = [
+            'restriction', 'restrict', 'prohibited', 'ban', 'allowed',
+            'can i export', 'export rule', 'policy', 'regulation',
+            'requirement', 'documentation', 'certificate', 'license',
+            'take care', 'should know', 'what do i need', 'tariff',
+            'duty', 'compliance', 'condition', 'ste', 'state trading',
+        ]
+        if hs_code and query_type in ("hs_lookup", "general"):
+            if any(kw in query_lower for kw in POLICY_FOLLOWUP_KEYWORDS):
+                query_type = "combined" if country else "combined"
+                print(f"[Router] Post-hs_lookup upgrade: '{query_type}' for HS {hs_code}")
         
         state["query_type"] = query_type
         state["hs_code"] = hs_code
