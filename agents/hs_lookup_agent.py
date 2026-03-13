@@ -60,7 +60,8 @@ def _top(results: List[Dict], n: int) -> List[Dict]:
 class HSLookupAgent:
     """Agent that searches the hs_master_8_digit table for HS code lookups."""
 
-    _TRGM_THRESHOLD = 0.20  # minimum word_similarity to include a result
+    _TRGM_THRESHOLD = 0.25  # minimum word_similarity to include a result
+    _FTS_MIN_RANK   = 0.03  # minimum FTS rank to include a result
     _schema_cache: Optional[bool] = None  # None=unknown, True=new (has code_level), False=old
 
     def __init__(self):
@@ -151,7 +152,26 @@ class HSLookupAgent:
                ORDER BY rank DESC{order_l} LIMIT %s""",
             (query, query, limit)
         )
-        return [_row_to_dict(r, min(float(r[5]) * 2 + 0.40, 0.95)) for r in cur.fetchall()]
+        rows = cur.fetchall()
+
+        # Filter: must exceed minimum rank AND description must contain
+        # at least one keyword from the original query (guards against
+        # loose English stemmer matches like 'birds' → 'COTTON WOOL').
+        query_lower = query.lower()
+        keywords = [t.strip().lower() for t in re.split(r'[\s\-,/;:]+', query_lower) if len(t.strip()) >= 3]
+
+        results = []
+        for r in rows:
+            fts_rank = float(r[5]) if r[5] else 0.0
+            if fts_rank < self._FTS_MIN_RANK:
+                continue
+            desc_lower = (r[4] or "").lower()
+            # At least one keyword must appear in the description
+            if keywords and not any(kw in desc_lower for kw in keywords):
+                continue
+            results.append(_row_to_dict(r, min(fts_rank * 2 + 0.40, 0.95)))
+
+        return results
 
     def _s_and_ilike(self, cur, keywords: List[str], limit: int) -> List[Dict]:
         if not keywords:
@@ -221,6 +241,8 @@ class HSLookupAgent:
             }
 
         # FTS on description
+        query_lower = query.lower()
+        kw_filter = [t.strip().lower() for t in re.split(r'[\s\-,/;:]+', query_lower) if len(t.strip()) >= 3]
         try:
             cur.execute(
                 """SELECT hs_code, chapter_code, level, parent_hs_code, description,
@@ -232,7 +254,14 @@ class HSLookupAgent:
                 (query, query, limit)
             )
             for r in cur.fetchall():
-                results.append(_itc_row(r, min(float(r[5]) * 2 + 0.35, 0.90)))
+                fts_rank = float(r[5]) if r[5] else 0.0
+                if fts_rank < self._FTS_MIN_RANK:
+                    continue
+                desc_lower = (r[4] or "").lower()
+                # Must contain at least one search keyword
+                if kw_filter and not any(kw in desc_lower for kw in kw_filter):
+                    continue
+                results.append(_itc_row(r, min(fts_rank * 2 + 0.35, 0.90)))
         except Exception:
             pass
 

@@ -111,6 +111,10 @@ Examples:
 - "i want to export RADIO-BROADCAST RECVRS, what are the hs codes" → HS_LOOKUP | PRODUCT: radio broadcast receivers
 - "Rules of origin for UAE" → AGREEMENTS | PRODUCT: NONE
 - "Show all restricted items" → SQL | PRODUCT: NONE
-- "DGFT FTP categories of supply" → VECTOR | PRODUCT: NONE"""
+- "DGFT FTP categories of supply" → VECTOR | PRODUCT: NONE
+- "tell me any restrictions for it" (after discussing HS code) → COMBINED | PRODUCT: NONE
+- "any restrictions or rules I should know" (after HS lookup) → COMBINED | PRODUCT: NONE
+- "can I export it, any rules?" (follow-up after HS code identified) → COMBINED | PRODUCT: NONE
+- "what documentation is needed?" (follow-up) → COMBINED | PRODUCT: NONE"""
 
 ROUTER_HUMAN_TEMPLATE = "Query: {query}"
