@@ -15,7 +15,7 @@ from datetime import datetime
 import psycopg2
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 
 from config import Config
 from export_data_integrator import ExportDataIntegrator
@@ -26,23 +26,24 @@ from .sql_agent import SQLAgent
 from .policy_agent import PolicyAgent
 from .vector_agent import VectorAgent
 from .agreements_agent import AgreementsAgent
+from .hs_lookup_agent import HSLookupAgent
 from .synthesizer import AnswerSynthesizer
 
 
 class ExportAdvisoryGraph:
     """Main LangGraph orchestrator"""
     
-    def __init__(self, google_api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None):
         """Initialize the graph"""
         
         # Setup LLM
-        api_key = google_api_key or Config.GOOGLE_API_KEY or os.getenv("GOOGLE_API_KEY")
+        api_key = api_key or Config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ValueError("Google API key required. Set in .env or pass as parameter.")
+            raise ValueError("Anthropic API key required. Set ANTHROPIC_API_KEY in .env or pass as parameter.")
         
-        self.llm = ChatGoogleGenerativeAI(
+        self.llm = ChatAnthropic(
             model=Config.LLM_MODEL,
-            google_api_key=api_key,
+            api_key=api_key,
             temperature=Config.LLM_TEMPERATURE
         )
         
@@ -52,6 +53,7 @@ class ExportAdvisoryGraph:
         self.policy_agent = PolicyAgent()
         self.vector_agent = VectorAgent()
         self.agreements_agent = AgreementsAgent()
+        self.hs_lookup_agent = HSLookupAgent()
         self.synthesizer = AnswerSynthesizer(self.llm)
         
         # Session-based conversation memory
@@ -197,11 +199,12 @@ class ExportAdvisoryGraph:
         workflow.add_node("vector", self.vector_agent.execute)
         workflow.add_node("agreements", self.agreements_agent.execute)
         workflow.add_node("combined", self._combined_execute)
+        workflow.add_node("hs_lookup", self.hs_lookup_agent.execute)
         workflow.add_node("synthesizer", self.synthesizer.execute)
-        
+
         # Set entry point
         workflow.set_entry_point("router")
-        
+
         # Add conditional edges from router
         workflow.add_conditional_edges(
             "router",
@@ -212,16 +215,18 @@ class ExportAdvisoryGraph:
                 "vector": "vector",
                 "agreements": "agreements",
                 "combined": "combined",
+                "hs_lookup": "hs_lookup",
                 "general": "synthesizer"
             }
         )
-        
+
         # All agents go to synthesizer
         workflow.add_edge("sql", "synthesizer")
         workflow.add_edge("policy", "synthesizer")
         workflow.add_edge("vector", "synthesizer")
         workflow.add_edge("agreements", "synthesizer")
         workflow.add_edge("combined", "synthesizer")
+        workflow.add_edge("hs_lookup", "synthesizer")
         
         # Synthesizer is the end
         workflow.add_edge("synthesizer", END)
@@ -254,10 +259,13 @@ class ExportAdvisoryGraph:
             "query_type": None,
             "hs_code": None,
             "country": None,
+            "product_name": None,
             "sql_results": None,
             "vector_results": None,
             "policy_results": None,
             "agreement_results": None,
+            "hs_lookup_results": None,
+            "needs_clarification": None,
             "final_answer": None,
             "sources": [],
             "next_agent": None
@@ -366,7 +374,7 @@ def interactive_demo():
     except Exception as e:
         print(f"❌ Error initializing: {e}")
         print("\nMake sure you have:")
-        print("1. GOOGLE_API_KEY in .env file")
+        print("1. ANTHROPIC_API_KEY in .env file")
         print("2. Database connection working")
         print("3. Vector stores available")
         return

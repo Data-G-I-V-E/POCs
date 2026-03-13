@@ -46,13 +46,13 @@ class Config:
     ITC_NOTIFICATIONS_DIR = POLICIES_DIR / 'ITC_HS_notifications'
     
     # API Keys
-    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
+    ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
     
     # Embedding Model
     EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
     
     # LLM Configuration
-    LLM_MODEL = os.getenv('LLM_MODEL', 'gemini-2.5-flash')
+    LLM_MODEL = os.getenv('LLM_MODEL', 'claude-sonnet-4-20250514')
     LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', '0.1'))
     
     # Agreements RAG Store Path

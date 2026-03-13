@@ -8,7 +8,6 @@ Extracts HS code and country entities from the query.
 import re
 from typing import Optional
 
-import psycopg2
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 
@@ -29,81 +28,20 @@ class QueryRouter:
         ])
     
     def _find_hs_code_by_description(self, query: str) -> Optional[str]:
-        """Find HS code by searching product descriptions in database"""
+        """
+        Find HS code by searching product descriptions.
+        Delegates to HSLookupAgent which searches hs_master_8_digit (12K codes)
+        and itc_hs_products (2K ITC-specific codes) with ranked results.
+        Stores all matches in self._last_hs_matches for ambiguity handling.
+        """
+        self._last_hs_matches = []
         try:
-            conn = psycopg2.connect(**Config.DB_CONFIG)
-            cursor = conn.cursor()
-            
-            # Search in prohibited items
-            cursor.execute("""
-                SELECT hs_code, description 
-                FROM prohibited_items 
-                WHERE description ILIKE %s
-                LIMIT 1
-            """, (f'%{query}%',))
-            result = cursor.fetchone()
-            
-            if result:
-                cursor.close()
-                conn.close()
-                return result[0]
-            
-            # Search in restricted items
-            cursor.execute("""
-                SELECT hs_code, description 
-                FROM restricted_items 
-                WHERE description ILIKE %s
-                LIMIT 1
-            """, (f'%{query}%',))
-            result = cursor.fetchone()
-            
-            if result:
-                cursor.close()
-                conn.close()
-                return result[0]
-            
-            # Search in STE items
-            cursor.execute("""
-                SELECT hs_code, description 
-                FROM ste_items 
-                WHERE description ILIKE %s
-                LIMIT 1
-            """, (f'%{query}%',))
-            result = cursor.fetchone()
-            
-            if result:
-                cursor.close()
-                conn.close()
-                return result[0]
-            
-            # Search in hs_codes table
-            cursor.execute("""
-                SELECT hs_code, description 
-                FROM hs_codes 
-                WHERE description ILIKE %s
-                LIMIT 1
-            """, (f'%{query}%',))
-            result = cursor.fetchone()
-            
-            if result:
-                cursor.close()
-                conn.close()
-                return result[0]
-            
-            # Search in itc_hs_products table
-            cursor.execute("""
-                SELECT hs_code, description 
-                FROM itc_hs_products 
-                WHERE description ILIKE %s
-                LIMIT 1
-            """, (f'%{query}%',))
-            result = cursor.fetchone()
-            
-            cursor.close()
-            conn.close()
-            
-            return result[0] if result else None
-            
+            from .hs_lookup_agent import HSLookupAgent
+            results = HSLookupAgent().search_by_description(query, limit=20)
+            if results:
+                self._last_hs_matches = results
+                return results[0]["hs_code"]
+            return None
         except Exception as e:
             print(f"Error searching for HS code: {e}")
             return None
@@ -122,6 +60,8 @@ class QueryRouter:
             query_type = "combined"
         elif "SQL" in result_upper:
             query_type = "sql"
+        elif "HS_LOOKUP" in result_upper:
+            query_type = "hs_lookup"
         elif "POLICY" in result_upper:
             query_type = "policy"
         elif "AGREEMENT" in result_upper:
@@ -144,7 +84,17 @@ class QueryRouter:
         hs_match = re.search(r'\b(\d{6,8})\b', state["user_query"])
         hs_code = hs_match.group(1) if hs_match else None
         
-        # If no HS code found by regex, use LLM-extracted product name to search DB
+        # If no HS code in current query, scan conversation history for the most
+        # recently mentioned HS code (e.g. follow-up like "show its trade data")
+        if not hs_code:
+            for msg in reversed(state.get("messages", [])[:-1]):
+                content = msg.content if hasattr(msg, "content") else str(msg)
+                m = re.search(r'\b(\d{6,8})\b', content)
+                if m:
+                    hs_code = m.group(1)
+                    break
+        
+        # If still no HS code found, use LLM-extracted product name to search DB
         if not hs_code and product_name:
             hs_code = self._find_hs_code_by_description(product_name)
             # If we found an HS code by description, re-route to policy
@@ -162,16 +112,27 @@ class QueryRouter:
         # When we have both a product (HS code) and a country, the user
         # almost certainly wants trade stats + policy + agreements + DGFT FTP
         # all at once — not just one slice.
-        if hs_code and country and query_type in ("policy", "sql"):
-            query_type = "combined"
-        # Even without a country, if we have an HS code and it was routed
-        # to just 'policy', upgrade to 'combined' so trade stats are included
-        elif hs_code and query_type == "policy":
-            query_type = "combined"
+        # hs_lookup is exempt: user just wants the classification table.
+        if query_type != "hs_lookup":
+            if hs_code and country and query_type in ("policy", "sql"):
+                query_type = "combined"
+            elif hs_code and query_type == "policy":
+                query_type = "combined"
         
         state["query_type"] = query_type
         state["hs_code"] = hs_code
         state["country"] = country
+        state["product_name"] = product_name
         state["next_agent"] = query_type
+        
+        # Store HS master matches for ambiguity handling
+        if hasattr(self, '_last_hs_matches') and self._last_hs_matches:
+            state["hs_lookup_results"] = {
+                "results": self._last_hs_matches,
+                "count": len(self._last_hs_matches),
+                "search_term": product_name or hs_code or "",
+                "is_ambiguous": len(self._last_hs_matches) > 3,
+                "success": True
+            }
         
         return state

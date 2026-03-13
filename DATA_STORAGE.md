@@ -497,7 +497,49 @@ GROUP BY month_name, month ORDER BY total DESC LIMIT 1;
 
 ---
 
-## 7️⃣ HS Codes Base Table
+## 7️⃣ HS Master 8-Digit Table (Full Classification)
+
+### Table: `hs_master_8_digit`
+**Purpose**: Complete 8-digit HS code master reference — all 13,407 codes across 97 chapters, extracted from `data/master_hs_codes.pdf`
+**Rows**: 13,407 codes
+**Created By**: `storage-scripts/hs_master_loader.py`
+**Used By**: `HSLookupAgent` (`agents/hs_lookup_agent.py`) + `QueryRouter` inline search
+
+**Schema**:
+```sql
+CREATE TABLE hs_master_8_digit (
+    id SERIAL PRIMARY KEY,
+    s_no INTEGER,                          -- S.No. from source PDF
+    chapter INTEGER NOT NULL,              -- Chapter number (1–97)
+    hs_code VARCHAR(10) NOT NULL,          -- 7 or 8-digit HS code
+    description TEXT NOT NULL,             -- Product description (UPPERCASE)
+    chapter_code VARCHAR(2) GENERATED ALWAYS AS (LPAD(chapter::text, 2, '0')) STORED
+);
+```
+
+**Indexes**:
+- `idx_hs_master_code` — btree on `hs_code` (exact/prefix lookup)
+- `idx_hs_master_chapter` — btree on `chapter` (chapter-level filtering)
+- `idx_hs_master_desc_gin` — GIN on `to_tsvector('english', description)` (full-text search)
+- `idx_hs_master_desc_trgm` — GIN trigram on `description` (fuzzy/ILIKE search)
+
+**Search Strategies** (tried in order):
+1. **Full-text search** — `plainto_tsquery('english', query)` with ts_rank scoring
+2. **AND ILIKE** — All keywords must appear in description
+3. **OR ILIKE** — Any keyword appears in description
+
+**Example Data**:
+```sql
+s_no: 1, chapter: 1, hs_code: '01011010', description: 'HORSES FOR BREEDING'
+s_no: 850, chapter: 8, hs_code: '08041090', description: 'DATES, DESICCATED'
+s_no: 3200, chapter: 61, hs_code: '61091000', description: 'T-SHIRTS, SINGLETS OF COTTON'
+```
+
+**Connection**: Searched by both `QueryRouter` (inline product lookup) and `HSLookupAgent` (dedicated hs_lookup route). Router stores results in `state["hs_lookup_results"]`; HSLookupAgent overwrites with a more targeted search.
+
+---
+
+## 7️b️ HS Codes Base Table (Focus Codes)
 
 ### Table: `hs_codes`
 **Purpose**: Master HS code reference for focus HS codes  
@@ -1040,6 +1082,7 @@ chapter_code: '07', note_type: 'export_licensing', sl_no: 1, note_text: '...'
 
 | Data Type | Storage | Location | Connections | JSON Used? |
 |-----------|---------|----------|-------------|------------|
+| **HS Master 8-Digit** | PostgreSQL Table | `hs_master_8_digit` | Full-text + trigram GIN indexes | ❌ No |
 | **ITC HS Products** | PostgreSQL Table | `itc_hs_products` | `parent_hs_code` FK | ❌ No |
 | **Policy References** | PostgreSQL Table | `itc_hs_policy_references` | JOIN on chapter + policy_type | ❌ No |
 | **Chapter Policies** | PostgreSQL Table | `itc_chapter_policies` | Referenced by policy_reference | ❌ No |
@@ -1087,13 +1130,14 @@ Each agent in `agents/` reads from specific data stores:
 
 | Agent | File | Data Sources |
 |-------|------|--------------|
-| **QueryRouter** | `agents/router.py` | LLM-based product extraction → DB lookup in `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` |
+| **QueryRouter** | `agents/router.py` | LLM-based product extraction → full-text search in **`hs_master_8_digit`** (13,407 codes), then fallback to `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products` |
+| **HSLookupAgent** | `agents/hs_lookup_agent.py` | `hs_master_8_digit` (exact/prefix/full-text/fuzzy search, returns multiple matches for ambiguous queries) |
 | **SQLAgent** | `agents/sql_agent.py` | `export_statistics`, `monthly_export_statistics`, `v_monthly_exports`, `v_quarterly_exports`, `v_export_policy_unified`, `mv_hs_export_summary`, DB functions |
 | **PolicyAgent** | `agents/policy_agent.py` | `prohibited_items`, `restricted_items`, `ste_items`, `v_export_policy_unified`, `itc_chapter_notes`, `itc_chapters` via `ExportDataIntegrator` |
 | **VectorAgent** | `agents/vector_agent.py` | `dgft_ftp_rag_store/` (FAISS + ChromaDB) + `agreements_rag_store/` (FAISS + ChromaDB) via `DGFTFTPRetriever` + `AgreementsRetriever` |
 | **AgreementsAgent** | `agents/agreements_agent.py` | `agreements_rag_store/` (FAISS + ChromaDB + article index) via `AgreementsRetriever` + direct article lookup |
-| **Combined** | `agents/graph.py` | Runs SQL + Policy + Agreements + DGFT FTP together; also directly queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies` |
-| **AnswerSynthesizer** | `agents/synthesizer.py` | — (combines results from other agents, LLM-only) |
+| **Combined** | `agents/graph.py` | Runs SQL → Policy → Agreements (if country) → DGFT FTP sequentially; also directly queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies` |
+| **AnswerSynthesizer** | `agents/synthesizer.py` | — (combines results from other agents + HS lookup matches, LLM-only) |
 
 ## 🔍 Query Examples
 
@@ -1212,5 +1256,5 @@ Key endpoints:
 
 ---
 
-**Last Updated**: February 28, 2026  
-**Database Schema Version**: 5.1 (LLM Product Extraction + ITC Chapter Notes)
+**Last Updated**: March 8, 2026
+**Database Schema Version**: 6.1 (HS Master 8-Digit table + HS Lookup Agent wired in graph)

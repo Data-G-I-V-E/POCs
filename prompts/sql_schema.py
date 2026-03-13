@@ -72,6 +72,25 @@ Available Tables and Views:
 14. mv_hs_export_summary - Aggregated export statistics
     Columns: hs_code, description, export_countries_count, total_export_value_crore, latest_year
 
+15. hs_master_8_digit - Master HS code classification table (12,056 eight-digit Indian HS codes)
+    Columns: hs_code (VARCHAR), chapter (INTEGER), heading (VARCHAR 4-digit), subheading (VARCHAR 6-digit),
+             description (TEXT), code_level (INTEGER: 3=tariff line/8-digit, 2=subheading/6-digit, 1=heading/4-digit),
+             parent_code (VARCHAR), source_chapter (VARCHAR)
+    Use for: finding HS codes for a product description, listing all codes in a chapter,
+             checking what chapter/heading a code belongs to, browsing the full HS code tree
+    Indexes: GIN full-text on description (use plainto_tsquery), trigram on description (use word_similarity)
+    Example: SELECT hs_code, description FROM hs_master_8_digit
+             WHERE to_tsvector('english', description) @@ plainto_tsquery('english', 'cotton shirts')
+
+16. itc_hs_products - ITC HS codes with Indian export policy classification (2,006 codes, Chapters 7,8,61,62,85,90)
+    Columns: hs_code (VARCHAR), chapter_code (VARCHAR), description (TEXT),
+             export_policy (VARCHAR: 'Free'/'Restricted'/'Prohibited'/'STE'/'CITES'),
+             parent_hs_code (VARCHAR), level (VARCHAR), notification_no, notification_date
+    Use for: checking the export policy status of specific HS codes in ITC chapters,
+             finding all restricted or free items in a particular chapter,
+             cross-referencing HS codes with their ITC export classifications
+    Note: For full policy text and conditions use v_export_policy_unified; itc_hs_products has the raw ITC classification
+
 Functions:
 - get_export_feasibility(hs_code VARCHAR, country_code VARCHAR) - Check export feasibility
 - search_hs_codes(search_term TEXT) - Search HS codes by description
@@ -86,4 +105,6 @@ Important:
 - For "what are restricted items" queries, use: SELECT * FROM restricted_items
 - For "what are STE items" queries, use: SELECT * FROM ste_items
 - For monthly/trend/seasonal queries, prefer v_monthly_exports (has names) or v_quarterly_exports
+- For finding HS codes by product name, use hs_master_8_digit with plainto_tsquery or ILIKE on description
+- For ITC export policy status of a known HS code, use itc_hs_products.export_policy or v_export_policy_unified
 """

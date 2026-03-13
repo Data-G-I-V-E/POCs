@@ -12,6 +12,7 @@ from .sql_agent import SQLAgent
 from .policy_agent import PolicyAgent
 from .vector_agent import VectorAgent
 from .agreements_agent import AgreementsAgent
+from .hs_lookup_agent import HSLookupAgent
 from .synthesizer import AnswerSynthesizer
 from .graph import ExportAdvisoryGraph, interactive_demo
 
@@ -22,6 +23,7 @@ __all__ = [
     "PolicyAgent",
     "VectorAgent",
     "AgreementsAgent",
+    "HSLookupAgent",
     "AnswerSynthesizer",
     "ExportAdvisoryGraph",
     "interactive_demo",

@@ -267,7 +267,7 @@ STEP 1: QUERY ROUTER (agents/router.py)
 ──────────────────────────────────────────────────
   Input:  "I want to export cows to UAE, show past data"
   
-  The Router sends the query to Google Gemini AI, which returns:
+  The Router sends the query to Claude AI (Anthropic), which returns:
     • Route Type: COMBINED (needs data + policy + agreements)
     • Product: "cows"
     • Country: UAE
@@ -286,7 +286,7 @@ STEP 2: LangGraph orchestrates ALL 4 AGENTS IN PARALLEL
 
   Agent 1: SQL Agent (agents/sql_agent.py)
   ├── Input: HS code + country + user question
-  ├── Gemini AI generates SQL from the question:
+  ├── Claude AI generates SQL from the question:
   │   "SELECT hs_code, country_code, year_label, export_value_crore 
   │    FROM export_statistics 
   │    WHERE hs_code = '01022120' AND country_code = 'UAE'"
@@ -322,7 +322,7 @@ STEP 2: LangGraph orchestrates ALL 4 AGENTS IN PARALLEL
 
 STEP 3: ANSWER SYNTHESIZER (agents/synthesizer.py)
 ──────────────────────────────────────────────────
-  Collects results from ALL agents and sends to Gemini AI with a prompt:
+  Collects results from ALL agents and sends to Claude AI with a prompt:
   "Here are the results from 4 data sources. Write a coherent answer."
 
   The synthesizer also:
@@ -394,7 +394,7 @@ E. Conversation Memory
        ▼
   ┌─────────────────────────────────────────────────────┐
   │  QUERY ROUTER (agents/router.py)                    │
-  │  Gemini AI extracts: Product="cows", Country=UAE    │
+  │  Claude AI extracts: Product="cows", Country=UAE    │
   │  DB lookup: "cows" → HS 01022120                    │
   │  Route: COMBINED (HS code + country detected)       │
   └───────────────────┬─────────────────────────────────┘
@@ -425,7 +425,7 @@ E. Conversation Memory
             │  ANSWER SYNTHESIZER   │
             │  (agents/synthesizer) │
             │                       │
-            │  Gemini AI combines   │
+            │  Claude AI combines   │
             │  all results into     │
             │  one coherent answer  │
             │  with sources cited   │
