@@ -19,13 +19,31 @@ class Config:
     DATA_DIR = ROOT_DIR / "data"
     
     # Database Configuration
-    DB_CONFIG = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'port': int(os.getenv('DB_PORT', '5432')),
-        'database': os.getenv('DB_NAME', os.getenv('POSTGRES_DB', 'PPL-AI')),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASSWORD', os.getenv('POSTGRES_PASSWORD', '')),
-    }
+    # Prefer SUPABASE_CONNECTION_STRING if set (e.g. for deployed environments),
+    # otherwise fall back to individual DB_* vars (local dev).
+    _supabase_url = os.getenv('SUPABASE_CONNECTION_STRING', '')
+
+    if _supabase_url:
+        # Parse the libpq URI: postgresql://user:pass@host:port/dbname[?sslmode=...]
+        from urllib.parse import urlparse
+        _u = urlparse(_supabase_url)
+        DB_CONFIG = {
+            'host':     _u.hostname,
+            'port':     _u.port or 5432,
+            'database': _u.path.lstrip('/'),
+            'user':     _u.username,
+            'password': _u.password,
+            'sslmode':  'require',   # Supabase always requires SSL
+        }
+    else:
+        DB_CONFIG = {
+            'host':     os.getenv('DB_HOST', 'localhost'),
+            'port':     int(os.getenv('DB_PORT', '5432')),
+            'database': os.getenv('DB_NAME', os.getenv('POSTGRES_DB', 'PPL-AI')),
+            'user':     os.getenv('DB_USER', 'postgres'),
+            'password': os.getenv('DB_PASSWORD', os.getenv('POSTGRES_PASSWORD', '')),
+        }
+
     
     # Vector Store Paths
     AGREEMENTS_CHROMA_PATH = Path(os.getenv(
