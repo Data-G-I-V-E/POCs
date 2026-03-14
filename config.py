@@ -48,6 +48,15 @@ class Config:
     # API Keys
     ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
     
+    # Qdrant Configuration
+    QDRANT_URL     = os.getenv('QDRANT_URL', 'http://localhost:6333')
+    QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '')   # leave blank for local
+    QDRANT_AGREEMENTS_COLLECTION = os.getenv('QDRANT_AGREEMENTS_COLLECTION', 'trade_agreements')
+    QDRANT_DGFT_COLLECTION       = os.getenv('QDRANT_DGFT_COLLECTION', 'dgft_ftp')
+    QDRANT_EMBEDDING_DIM         = int(os.getenv('QDRANT_EMBEDDING_DIM', '384'))  # all-MiniLM-L6-v2
+    # Separate from EMBEDDING_MODEL so voyage scripts don't interfere with Qdrant
+    QDRANT_EMBEDDING_MODEL       = os.getenv('QDRANT_EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
+
     # Embedding Model
     EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
     

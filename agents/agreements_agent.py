@@ -25,14 +25,27 @@ class AgreementsAgent:
         try:
             import sys as _sys
             _sys.path.insert(0, str(Config.ROOT_DIR / "storage-scripts"))
-            from agreements_retriever import AgreementsRetriever
-            
-            agreements_path = Config.ROOT_DIR / "agreements_rag_store"
-            if agreements_path.exists():
-                self.retriever = AgreementsRetriever(storage_path=agreements_path)
-                print("✓ AgreementsAgent: Retriever loaded")
-            else:
-                print("⚠️  AgreementsAgent: agreements_rag_store not found")
+
+            # ── Try Qdrant backend first ──────────────────────────────────
+            try:
+                from agreements_retriever_qdrant import AgreementsRetriever
+                agreements_path = Config.ROOT_DIR / "agreements_rag_store"
+                if agreements_path.exists():
+                    self.retriever = AgreementsRetriever(storage_path=agreements_path)
+                    print("✓ AgreementsAgent: Retriever loaded (Qdrant backend)")
+                else:
+                    raise FileNotFoundError("agreements_rag_store not found")
+            except Exception as qdrant_err:
+                print(f"⚠️  AgreementsAgent: Qdrant retriever failed ({qdrant_err}), trying FAISS…")
+
+                # ── FAISS/ChromaDB fallback ───────────────────────────────
+                from agreements_retriever import AgreementsRetriever as AgreementsRetrieverFAISS
+                agreements_path = Config.ROOT_DIR / "agreements_rag_store"
+                if agreements_path.exists():
+                    self.retriever = AgreementsRetrieverFAISS(storage_path=agreements_path)
+                    print("✓ AgreementsAgent: Retriever loaded (FAISS fallback)")
+                else:
+                    print("⚠️  AgreementsAgent: agreements_rag_store not found")
         except Exception as e:
             print(f"⚠️  AgreementsAgent: Could not load retriever: {e}")
     
