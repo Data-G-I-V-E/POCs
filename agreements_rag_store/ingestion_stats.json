@@ -1,0 +1,25 @@
+{
+  "total_docs": 108,
+  "total_chunks": 2524,
+  "skipped_docs": 21,
+  "by_country": {
+    "australia": {
+      "docs": 24,
+      "chunks": 577,
+      "skipped": 7
+    },
+    "uae": {
+      "docs": 35,
+      "chunks": 751,
+      "skipped": 3
+    },
+    "uk": {
+      "docs": 49,
+      "chunks": 1196,
+      "skipped": 11
+    }
+  },
+  "articles_parsed": 888,
+  "cross_refs_found": 1201,
+  "timestamp": "2026-02-16T16:20:53.879273"
+}
