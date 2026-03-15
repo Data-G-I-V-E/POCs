@@ -18,16 +18,39 @@ import uvicorn
 from datetime import datetime
 import traceback
 import psycopg2
+from contextlib import asynccontextmanager
 
 from agents import ExportAdvisoryGraph
 from export_data_integrator import ExportDataIntegrator
 from config import Config
 
+# Global references — populated during lifespan startup
+agent = None
+integrator = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load heavy resources after port is bound (prevents Render startup timeout)."""
+    global agent, integrator
+    try:
+        agent = ExportAdvisoryGraph()
+        integrator = ExportDataIntegrator()
+        print("✓ Agent and integrator initialized successfully")
+    except Exception as e:
+        print(f"❌ Error initializing agent: {e}")
+        agent = None
+        integrator = None
+    yield
+    # Cleanup (if needed) goes here
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Export Advisory API",
     description="Multi-agent export advisory system with conversation memory",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware for frontend
@@ -39,15 +62,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize agent and integrator
-try:
-    agent = ExportAdvisoryGraph()
-    integrator = ExportDataIntegrator()
-    print("✓ Agent and integrator initialized successfully")
-except Exception as e:
-    print(f"❌ Error initializing: {e}")
-    agent = None
-    integrator = None
 
 
 # ========== REQUEST/RESPONSE MODELS ==========
