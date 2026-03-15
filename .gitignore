@@ -63,8 +63,11 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Generated data
-agreements_rag_store/
+# Generated data — keep JSON files, ignore binary/chroma dirs
+agreements_rag_store/agreements_chroma/
+agreements_rag_store/agreements.index
+dgft_ftp_rag_store/dgft_ftp_chroma/
+dgft_ftp_rag_store/dgft_ftp.index
 dgft_output/
 **/output/
 **/temp/
@@ -85,9 +88,4 @@ data/
 dgft_chroma_db
 dgft_output
 .env
-agreements_rag_store/agreements.index  
-agreements_rag_store/agreements_chroma/
-dgft_output
-dgft_ftp_rag_store/dgft_ftp.index 
-dgft_ftp_rag_store/dgft_ftp_chroma/ 
-.claude
+.claude
