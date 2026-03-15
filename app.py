@@ -18,21 +18,22 @@ import uvicorn
 from datetime import datetime
 import traceback
 import psycopg2
+import threading
 from contextlib import asynccontextmanager
 
 from agents import ExportAdvisoryGraph
 from export_data_integrator import ExportDataIntegrator
 from config import Config
 
-# Global references — populated during lifespan startup
+# Global references — populated by background init thread
 agent = None
 integrator = None
+_init_complete = False
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Load heavy resources after port is bound (prevents Render startup timeout)."""
-    global agent, integrator
+def _initialize_sync():
+    """Run in a background thread so startup doesn't block port binding."""
+    global agent, integrator, _init_complete
     try:
         agent = ExportAdvisoryGraph()
         integrator = ExportDataIntegrator()
@@ -41,8 +42,17 @@ async def lifespan(app: FastAPI):
         print(f"❌ Error initializing agent: {e}")
         agent = None
         integrator = None
-    yield
-    # Cleanup (if needed) goes here
+    finally:
+        _init_complete = True
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Kick off init in background thread — port binds immediately."""
+    thread = threading.Thread(target=_initialize_sync, daemon=True)
+    thread.start()
+    yield  # server accepts connections right away
+
 
 
 # Initialize FastAPI app
