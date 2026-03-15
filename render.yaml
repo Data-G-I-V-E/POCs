@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: export-advisory
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python -c "from fastembed import TextEmbedding; print('Pre-downloading ONNX model...'); TextEmbedding('sentence-transformers/all-MiniLM-L6-v2'); print('Model cached.')"
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.14
