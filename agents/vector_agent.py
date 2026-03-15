@@ -19,19 +19,28 @@ class VectorAgent:
     def __init__(self):
         self.integrator = ExportDataIntegrator(use_vector_stores=True)
         
-        # Load DGFT FTP retriever
+        # Load DGFT FTP retriever — Qdrant backend (with FAISS fallback)
         self.dgft_retriever = None
         try:
             import sys as _sys
             _sys.path.insert(0, str(Config.ROOT_DIR / "storage-scripts"))
-            from dgft_ftp_retriever import DGFTFTPRetriever
-            
-            dgft_path = Config.ROOT_DIR / "dgft_ftp_rag_store"
-            if dgft_path.exists():
-                self.dgft_retriever = DGFTFTPRetriever(storage_path=dgft_path)
-                print("✓ VectorAgent: DGFT FTP retriever loaded")
-            else:
-                print("⚠️  VectorAgent: dgft_ftp_rag_store not found (run dgft_ftp_ingest.py)")
+
+            # ── Try Qdrant backend first ──────────────────────────────────
+            try:
+                from dgft_ftp_retriever_qdrant import DGFTFTPRetriever
+                self.dgft_retriever = DGFTFTPRetriever()
+                print("✓ VectorAgent: DGFT FTP retriever loaded (Qdrant backend)")
+            except Exception as qdrant_err:
+                print(f"⚠️  VectorAgent: Qdrant DGFT retriever failed ({qdrant_err}), trying FAISS…")
+
+                # ── FAISS/ChromaDB fallback ───────────────────────────────
+                from dgft_ftp_retriever import DGFTFTPRetriever as DGFTFTPRetrieverFAISS
+                dgft_path = Config.ROOT_DIR / "dgft_ftp_rag_store"
+                if dgft_path.exists():
+                    self.dgft_retriever = DGFTFTPRetrieverFAISS(storage_path=dgft_path)
+                    print("✓ VectorAgent: DGFT FTP retriever loaded (FAISS fallback)")
+                else:
+                    print("⚠️  VectorAgent: dgft_ftp_rag_store not found; run dgft_ftp_ingest_qdrant.py")
         except Exception as e:
             print(f"⚠️  VectorAgent: Could not load DGFT FTP retriever: {e}")
     

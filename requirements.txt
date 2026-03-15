@@ -27,3 +27,5 @@ PyMuPDF
 fastapi
 uvicorn[standard]
 pydantic
+qdrant-client
+fastembed

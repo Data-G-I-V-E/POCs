@@ -1,0 +1,2555 @@
+{
+  "preamble": [
+    {
+      "vector_index": 0,
+      "chapter_num": 1,
+      "section_full": "Chapter 1 Preamble"
+    },
+    {
+      "vector_index": 41,
+      "chapter_num": 10,
+      "section_full": "Chapter 10 Preamble"
+    },
+    {
+      "vector_index": 59,
+      "chapter_num": 11,
+      "section_full": "Chapter 11 Preamble"
+    },
+    {
+      "vector_index": 119,
+      "chapter_num": 2,
+      "section_full": "Chapter 2 Preamble"
+    },
+    {
+      "vector_index": 218,
+      "chapter_num": 4,
+      "section_full": "Chapter 4 Preamble"
+    },
+    {
+      "vector_index": 219,
+      "chapter_num": 4,
+      "section_full": "Chapter 4 Preamble"
+    },
+    {
+      "vector_index": 292,
+      "chapter_num": 5,
+      "section_full": "Chapter 5 Preamble"
+    },
+    {
+      "vector_index": 313,
+      "chapter_num": 6,
+      "section_full": "Chapter 6 Preamble"
+    },
+    {
+      "vector_index": 366,
+      "chapter_num": 7,
+      "section_full": "Chapter 7 Preamble"
+    },
+    {
+      "vector_index": 384,
+      "chapter_num": 8,
+      "section_full": "Chapter 8 Preamble"
+    },
+    {
+      "vector_index": 399,
+      "chapter_num": 9,
+      "section_full": "Chapter 9 Preamble"
+    }
+  ],
+  "1.00": [
+    {
+      "vector_index": 1,
+      "chapter_num": 1,
+      "section_full": "Section 1.00: Legal Basis of Foreign Trade Policy"
+    }
+  ],
+  "1.01": [
+    {
+      "vector_index": 2,
+      "chapter_num": 1,
+      "section_full": "Section 1.01: Duration of FTP"
+    }
+  ],
+  "1.02": [
+    {
+      "vector_index": 3,
+      "chapter_num": 1,
+      "section_full": "Section 1.02: Amendment to FTP"
+    }
+  ],
+  "1.03": [
+    {
+      "vector_index": 4,
+      "chapter_num": 1,
+      "section_full": "Section 1.03: Hand Book of Procedures (HBP) and"
+    }
+  ],
+  "1.04": [
+    {
+      "vector_index": 5,
+      "chapter_num": 1,
+      "section_full": "Section 1.04: Specific provision to prevail over the"
+    }
+  ],
+  "1.05": [
+    {
+      "vector_index": 6,
+      "chapter_num": 1,
+      "section_full": "Section 1.05: Transitional Arrangements"
+    }
+  ],
+  "2.17": [
+    {
+      "vector_index": 7,
+      "chapter_num": 1,
+      "section_full": "Section 2.17: of HBP 2023. Bill of Lading and Shipping Bill"
+    },
+    {
+      "vector_index": 8,
+      "chapter_num": 1,
+      "section_full": "Section 2.17: of HBP 2023. Bill of Lading and Shipping Bill"
+    },
+    {
+      "vector_index": 146,
+      "chapter_num": 2,
+      "section_full": "Section 2.17: Prohibition on Trade with the Islamic"
+    }
+  ],
+  "1.06": [
+    {
+      "vector_index": 9,
+      "chapter_num": 1,
+      "section_full": "Section 1.06: National Committee on Trade"
+    },
+    {
+      "vector_index": 10,
+      "chapter_num": 1,
+      "section_full": "Section 1.06: National Committee on Trade"
+    }
+  ],
+  "1.07": [
+    {
+      "vector_index": 11,
+      "chapter_num": 1,
+      "section_full": "Section 1.07: DGFT as a facilitator of exports/"
+    }
+  ],
+  "1.08": [
+    {
+      "vector_index": 12,
+      "chapter_num": 1,
+      "section_full": "Section 1.08: Free passage of Export Consignment"
+    }
+  ],
+  "1.09": [
+    {
+      "vector_index": 13,
+      "chapter_num": 1,
+      "section_full": "Section 1.09: No seizure of export related Stock"
+    }
+  ],
+  "1.10": [
+    {
+      "vector_index": 14,
+      "chapter_num": 1,
+      "section_full": "Section 1.10: Export of perishable agricultural"
+    }
+  ],
+  "1.11": [
+    {
+      "vector_index": 15,
+      "chapter_num": 1,
+      "section_full": "Section 1.11: Niryat Bandhu - Hand Holding"
+    }
+  ],
+  "1.12": [
+    {
+      "vector_index": 16,
+      "chapter_num": 1,
+      "section_full": "Section 1.12: DGFT Online Customer Portal"
+    }
+  ],
+  "1.13": [
+    {
+      "vector_index": 17,
+      "chapter_num": 1,
+      "section_full": "Section 1.13: Issue of e-IEC (Electronic-Importer"
+    }
+  ],
+  "1.14": [
+    {
+      "vector_index": 18,
+      "chapter_num": 1,
+      "section_full": "Section 1.14: Online facility for e-RCMC/RC Related"
+    }
+  ],
+  "1.15": [
+    {
+      "vector_index": 19,
+      "chapter_num": 1,
+      "section_full": "Section 1.15: Online facility for e-Certificate of"
+    }
+  ],
+  "1.16": [
+    {
+      "vector_index": 20,
+      "chapter_num": 1,
+      "section_full": "Section 1.16: Online facility to file Quality Control"
+    }
+  ],
+  "1.17": [
+    {
+      "vector_index": 21,
+      "chapter_num": 1,
+      "section_full": "Section 1.17: Electronic record of export proceeds"
+    }
+  ],
+  "1.18": [
+    {
+      "vector_index": 22,
+      "chapter_num": 1,
+      "section_full": "Section 1.18: IT Initiatives in DGFT"
+    }
+  ],
+  "1.19": [
+    {
+      "vector_index": 23,
+      "chapter_num": 1,
+      "section_full": "Section 1.19: 24 X 7 Helpdesk Facility"
+    }
+  ],
+  "1.20": [
+    {
+      "vector_index": 24,
+      "chapter_num": 1,
+      "section_full": "Section 1.20: Trade Data and Statistics"
+    }
+  ],
+  "1.21": [
+    {
+      "vector_index": 25,
+      "chapter_num": 1,
+      "section_full": "Section 1.21: Trade Facilitation at Customs"
+    }
+  ],
+  "1.22": [
+    {
+      "vector_index": 26,
+      "chapter_num": 1,
+      "section_full": "Section 1.22: Authorised Economic Operator (AEO)"
+    },
+    {
+      "vector_index": 27,
+      "chapter_num": 1,
+      "section_full": "Section 1.22: Authorised Economic Operator (AEO)"
+    }
+  ],
+  "1.23": [
+    {
+      "vector_index": 28,
+      "chapter_num": 1,
+      "section_full": "Section 1.23: Towns of Export Excellence (TEE)"
+    }
+  ],
+  "1.24": [
+    {
+      "vector_index": 29,
+      "chapter_num": 1,
+      "section_full": "Section 1.24: Duty Free Entitlements to Select"
+    }
+  ],
+  "1.25": [
+    {
+      "vector_index": 30,
+      "chapter_num": 1,
+      "section_full": "Section 1.25: Status Holder Certification"
+    }
+  ],
+  "1.26": [
+    {
+      "vector_index": 31,
+      "chapter_num": 1,
+      "section_full": "Section 1.26: of Foreign Trade Policy. However, for Gems &"
+    },
+    {
+      "vector_index": 32,
+      "chapter_num": 1,
+      "section_full": "Section 1.26: Status Holder Categories"
+    }
+  ],
+  "1.27": [
+    {
+      "vector_index": 33,
+      "chapter_num": 1,
+      "section_full": "Section 1.27: Grant of Double Weightage"
+    }
+  ],
+  "1.28": [
+    {
+      "vector_index": 34,
+      "chapter_num": 1,
+      "section_full": "Section 1.28: Other Conditions for Grant of Status"
+    }
+  ],
+  "1.29": [
+    {
+      "vector_index": 35,
+      "chapter_num": 1,
+      "section_full": "Section 1.29: Privileges of\u00a0\u00a0Status Holders"
+    },
+    {
+      "vector_index": 36,
+      "chapter_num": 1,
+      "section_full": "Section 1.29: Privileges of\u00a0\u00a0Status Holders"
+    },
+    {
+      "vector_index": 37,
+      "chapter_num": 1,
+      "section_full": "Section 1.29: Privileges of\u00a0\u00a0Status Holders"
+    }
+  ],
+  "1.30": [
+    {
+      "vector_index": 38,
+      "chapter_num": 1,
+      "section_full": "Section 1.30: Skilling and Mentorship Obligations"
+    }
+  ],
+  "1.31": [
+    {
+      "vector_index": 39,
+      "chapter_num": 1,
+      "section_full": "Section 1.31: Inter-Ministerial Committee for MSME"
+    }
+  ],
+  "1.32": [
+    {
+      "vector_index": 40,
+      "chapter_num": 1,
+      "section_full": "Section 1.32: Citizen\u2019s Charter"
+    }
+  ],
+  "10.00": [
+    {
+      "vector_index": 42,
+      "chapter_num": 10,
+      "section_full": "Section 10.00: Objective"
+    }
+  ],
+  "10.01": [
+    {
+      "vector_index": 43,
+      "chapter_num": 10,
+      "section_full": "Section 10.01: Brief Background"
+    },
+    {
+      "vector_index": 44,
+      "chapter_num": 10,
+      "section_full": "Section 10.01: Brief Background"
+    }
+  ],
+  "10.02": [
+    {
+      "vector_index": 45,
+      "chapter_num": 10,
+      "section_full": "Section 10.02: SCOMET List"
+    }
+  ],
+  "10.03": [
+    {
+      "vector_index": 46,
+      "chapter_num": 10,
+      "section_full": "Section 10.03: Classification of SCOMET categories"
+    },
+    {
+      "vector_index": 47,
+      "chapter_num": 10,
+      "section_full": "Section 10.03: Classification of SCOMET categories"
+    }
+  ],
+  "10.04": [
+    {
+      "vector_index": 48,
+      "chapter_num": 10,
+      "section_full": "Section 10.04: Export of SCOMET Items"
+    }
+  ],
+  "10.05": [
+    {
+      "vector_index": 49,
+      "chapter_num": 10,
+      "section_full": "Section 10.05: Additional controls on Non-SCOMET"
+    }
+  ],
+  "10.06": [
+    {
+      "vector_index": 50,
+      "chapter_num": 10,
+      "section_full": "Section 10.06: Supply of SCOMET Items from DTA"
+    }
+  ],
+  "10.07": [
+    {
+      "vector_index": 51,
+      "chapter_num": 10,
+      "section_full": "Section 10.07: Export of imported SCOMET items"
+    }
+  ],
+  "10.08": [
+    {
+      "vector_index": 52,
+      "chapter_num": 10,
+      "section_full": "Section 10.08: Different types of export authoriza-"
+    },
+    {
+      "vector_index": 53,
+      "chapter_num": 10,
+      "section_full": "Section 10.08: Different types of export authoriza-"
+    },
+    {
+      "vector_index": 54,
+      "chapter_num": 10,
+      "section_full": "Section 10.08: Different types of export authoriza-"
+    },
+    {
+      "vector_index": 55,
+      "chapter_num": 10,
+      "section_full": "Section 10.08: Different types of export authoriza-"
+    }
+  ],
+  "10.09": [
+    {
+      "vector_index": 56,
+      "chapter_num": 10,
+      "section_full": "Section 10.09: Issue, amendment and revalidation of"
+    }
+  ],
+  "10.10": [
+    {
+      "vector_index": 57,
+      "chapter_num": 10,
+      "section_full": "Section 10.10: Outreach Programmes on SCOMET"
+    }
+  ],
+  "10.11": [
+    {
+      "vector_index": 58,
+      "chapter_num": 10,
+      "section_full": "Section 10.11: Voluntary Self Disclosure of export of"
+    }
+  ],
+  "11.01": [
+    {
+      "vector_index": 60,
+      "chapter_num": 11,
+      "section_full": "Section 11.01: \u201cAccessory\u201d or \u201cAttachment\u201d means apart,"
+    }
+  ],
+  "11.02": [
+    {
+      "vector_index": 61,
+      "chapter_num": 11,
+      "section_full": "Section 11.02: \u201cAct\u201d means Foreign Trade (Development and"
+    }
+  ],
+  "11.03": [
+    {
+      "vector_index": 62,
+      "chapter_num": 11,
+      "section_full": "Section 11.03: \u201cActual User\u201d is a person (either natural & legal)"
+    }
+  ],
+  "11.04": [
+    {
+      "vector_index": 63,
+      "chapter_num": 11,
+      "section_full": "Section 11.04: \u201cAEZ\u201d means Agricultural Export Zones notified"
+    }
+  ],
+  "11.05": [
+    {
+      "vector_index": 64,
+      "chapter_num": 11,
+      "section_full": "Section 11.05: \u201cAppeal\u201d is an application filed under section"
+    }
+  ],
+  "11.06": [
+    {
+      "vector_index": 65,
+      "chapter_num": 11,
+      "section_full": "Section 11.06: \u201cApplicant\u201d means person on whose behalf"
+    }
+  ],
+  "11.07": [
+    {
+      "vector_index": 66,
+      "chapter_num": 11,
+      "section_full": "Section 11.07: \u201cAuthorisation\u201d means permission as included in"
+    }
+  ],
+  "11.08": [
+    {
+      "vector_index": 67,
+      "chapter_num": 11,
+      "section_full": "Section 11.08: \u201cCapital Goods\u201d means any plant, machinery,"
+    }
+  ],
+  "11.09": [
+    {
+      "vector_index": 68,
+      "chapter_num": 11,
+      "section_full": "Section 11.09: \u201cCompetent Authority\u201d means an authority"
+    }
+  ],
+  "11.10": [
+    {
+      "vector_index": 69,
+      "chapter_num": 11,
+      "section_full": "Section 11.10: \u201cComponent\u201d means one of the parts of a sub-"
+    }
+  ],
+  "11.11": [
+    {
+      "vector_index": 70,
+      "chapter_num": 11,
+      "section_full": "Section 11.11: \u201cConsumables\u201d"
+    }
+  ],
+  "11.12": [
+    {
+      "vector_index": 71,
+      "chapter_num": 11,
+      "section_full": "Section 11.12: \u201cConsumer Goods\u201d means any consumption"
+    }
+  ],
+  "11.13": [
+    {
+      "vector_index": 72,
+      "chapter_num": 11,
+      "section_full": "Section 11.13: \u201cCounter Trade\u201d means any arrangement"
+    }
+  ],
+  "11.14": [
+    {
+      "vector_index": 73,
+      "chapter_num": 11,
+      "section_full": "Section 11.14: \u201cDeveloper\u201d means a person or body of"
+    }
+  ],
+  "11.16": [
+    {
+      "vector_index": 74,
+      "chapter_num": 11,
+      "section_full": "Section 11.16: \u201cDomestic Tariff Area (DTA)\u201d means area within"
+    }
+  ],
+  "11.17": [
+    {
+      "vector_index": 75,
+      "chapter_num": 11,
+      "section_full": "Section 11.17: \u201ce-commerce\u201d\u00a0 means\u00a0 buying and selling of"
+    }
+  ],
+  "11.18": [
+    {
+      "vector_index": 76,
+      "chapter_num": 11,
+      "section_full": "Section 11.18: \u201cEOU\u201d means Export Oriented Unit for which a"
+    }
+  ],
+  "11.19": [
+    {
+      "vector_index": 77,
+      "chapter_num": 11,
+      "section_full": "Section 11.19: \u201cExcisable goods\u201d means any goods produced"
+    }
+  ],
+  "11.20": [
+    {
+      "vector_index": 78,
+      "chapter_num": 11,
+      "section_full": "Section 11.20: \u201cExport\u201d is as defined in FT (D&R) Act, 1992, as"
+    }
+  ],
+  "11.21": [
+    {
+      "vector_index": 79,
+      "chapter_num": 11,
+      "section_full": "Section 11.21: \u201cExporter\u201d means a person who exports or"
+    }
+  ],
+  "11.22": [
+    {
+      "vector_index": 80,
+      "chapter_num": 11,
+      "section_full": "Section 11.22: \u201cExport Obligation\u201d means obligation to export"
+    }
+  ],
+  "11.23": [
+    {
+      "vector_index": 81,
+      "chapter_num": 11,
+      "section_full": "Section 11.23: \u201cFree\u201d as appearing in context of import/export"
+    }
+  ],
+  "11.24": [
+    {
+      "vector_index": 82,
+      "chapter_num": 11,
+      "section_full": "Section 11.24: \u201cFTP\u201d means the Foreign Trade Policy, which"
+    }
+  ],
+  "11.25": [
+    {
+      "vector_index": 83,
+      "chapter_num": 11,
+      "section_full": "Section 11.25: \u201cImport\u201d is as defined in FT (D&R) Act, 1992 as"
+    }
+  ],
+  "11.26": [
+    {
+      "vector_index": 84,
+      "chapter_num": 11,
+      "section_full": "Section 11.26: \u201cImporter\u201d means a person who imports or"
+    }
+  ],
+  "11.27": [
+    {
+      "vector_index": 85,
+      "chapter_num": 11,
+      "section_full": "Section 11.27: ITC (HS) refers to Indian Trade Classification"
+    }
+  ],
+  "11.28": [
+    {
+      "vector_index": 86,
+      "chapter_num": 11,
+      "section_full": "Section 11.28: \u201cJobbing\u201d means processing or working upon of"
+    }
+  ],
+  "11.29": [
+    {
+      "vector_index": 87,
+      "chapter_num": 11,
+      "section_full": "Section 11.29: \u201cLicensing Year\u201d means period beginning on the"
+    }
+  ],
+  "11.30": [
+    {
+      "vector_index": 88,
+      "chapter_num": 11,
+      "section_full": "Section 11.30: \u201cManaged Hotel\u201d means hotels managed by a"
+    }
+  ],
+  "11.31": [
+    {
+      "vector_index": 89,
+      "chapter_num": 11,
+      "section_full": "Section 11.31: \u201cManufacture\u201d means to make, produce,"
+    }
+  ],
+  "11.32": [
+    {
+      "vector_index": 90,
+      "chapter_num": 11,
+      "section_full": "Section 11.32: \u201cManufacturer Exporter\u201d means a person who"
+    }
+  ],
+  "11.33": [
+    {
+      "vector_index": 91,
+      "chapter_num": 11,
+      "section_full": "Section 11.33: \u201cMerchant Exporter\u201d means a person engaged"
+    }
+  ],
+  "11.34": [
+    {
+      "vector_index": 92,
+      "chapter_num": 11,
+      "section_full": "Section 11.34: \u201cNC\u201d means the Norms Committee in the"
+    }
+  ],
+  "11.37": [
+    {
+      "vector_index": 93,
+      "chapter_num": 11,
+      "section_full": "Section 11.37: \u201cPart\u201d means an element of a sub-assembly or"
+    }
+  ],
+  "11.38": [
+    {
+      "vector_index": 94,
+      "chapter_num": 11,
+      "section_full": "Section 11.38: \u201cPerson\u201d means both natural and legal and"
+    }
+  ],
+  "11.39": [
+    {
+      "vector_index": 95,
+      "chapter_num": 11,
+      "section_full": "Section 11.39: \u201cPolicy\u201d means Foreign Trade Policy, 2023 as"
+    }
+  ],
+  "11.40": [
+    {
+      "vector_index": 96,
+      "chapter_num": 11,
+      "section_full": "Section 11.40: \u201cPrescribed\u201d means prescribed under the Act or"
+    }
+  ],
+  "11.41": [
+    {
+      "vector_index": 97,
+      "chapter_num": 11,
+      "section_full": "Section 11.41: \u201cProhibited\u201d indicates the import/export policy"
+    }
+  ],
+  "11.42": [
+    {
+      "vector_index": 98,
+      "chapter_num": 11,
+      "section_full": "Section 11.42: \u201cPublic Notice\u201d means a"
+    }
+  ],
+  "11.43": [
+    {
+      "vector_index": 99,
+      "chapter_num": 11,
+      "section_full": "Section 11.43: \u201cProject Exports\u201d refers to export of engineering"
+    }
+  ],
+  "11.44": [
+    {
+      "vector_index": 100,
+      "chapter_num": 11,
+      "section_full": "Section 11.44: \u201cQuota\u201d means the quantity of goods of a"
+    }
+  ],
+  "11.45": [
+    {
+      "vector_index": 101,
+      "chapter_num": 11,
+      "section_full": "Section 11.45: \u201cRaw material\u201d means input(s) needed for"
+    }
+  ],
+  "11.46": [
+    {
+      "vector_index": 102,
+      "chapter_num": 11,
+      "section_full": "Section 11.46: \u201cRegional Authority\u201d means authority competent"
+    }
+  ],
+  "11.47": [
+    {
+      "vector_index": 103,
+      "chapter_num": 11,
+      "section_full": "Section 11.47: \u201cRegistration-Cum-Membership"
+    }
+  ],
+  "11.48": [
+    {
+      "vector_index": 104,
+      "chapter_num": 11,
+      "section_full": "Section 11.48: \u201cRestricted\u201d is a term indicating the import or"
+    }
+  ],
+  "11.49": [
+    {
+      "vector_index": 105,
+      "chapter_num": 11,
+      "section_full": "Section 11.49: \u201cRules\u201d"
+    }
+  ],
+  "11.50": [
+    {
+      "vector_index": 106,
+      "chapter_num": 11,
+      "section_full": "Section 11.50: \u201cSCOMET\u201d is the nomenclature for dual"
+    }
+  ],
+  "11.51": [
+    {
+      "vector_index": 107,
+      "chapter_num": 11,
+      "section_full": "Section 11.51: \u201cServices\u201d include all tradable services covered"
+    }
+  ],
+  "11.52": [
+    {
+      "vector_index": 108,
+      "chapter_num": 11,
+      "section_full": "Section 11.52: \u201cService Provider\u201d means a person providing:"
+    }
+  ],
+  "11.53": [
+    {
+      "vector_index": 109,
+      "chapter_num": 11,
+      "section_full": "Section 11.53: \u201cShips\u201d means all types of vessels used for"
+    }
+  ],
+  "11.55": [
+    {
+      "vector_index": 110,
+      "chapter_num": 11,
+      "section_full": "Section 11.55: \u201cSpares\u201d means a part or a sub-assembly or"
+    }
+  ],
+  "11.56": [
+    {
+      "vector_index": 111,
+      "chapter_num": 11,
+      "section_full": "Section 11.56: \u201cSpecified\u201d means specified by or under the"
+    }
+  ],
+  "11.57": [
+    {
+      "vector_index": 112,
+      "chapter_num": 11,
+      "section_full": "Section 11.57: \u201cStatus holder\u201d means an exporter recognized"
+    }
+  ],
+  "11.58": [
+    {
+      "vector_index": 113,
+      "chapter_num": 11,
+      "section_full": "Section 11.58: \u201cStores\u201d means goods for use in a vessel or"
+    }
+  ],
+  "11.59": [
+    {
+      "vector_index": 114,
+      "chapter_num": 11,
+      "section_full": "Section 11.59: (a)"
+    }
+  ],
+  "11.60": [
+    {
+      "vector_index": 115,
+      "chapter_num": 11,
+      "section_full": "Section 11.60: State Trading Enterprises (STEs), for the purpose"
+    }
+  ],
+  "11.61": [
+    {
+      "vector_index": 116,
+      "chapter_num": 11,
+      "section_full": "Section 11.61: \u201cThird-party exports\u201d means exports made by an"
+    }
+  ],
+  "11.62": [
+    {
+      "vector_index": 117,
+      "chapter_num": 11,
+      "section_full": "Section 11.62: \u201cTransaction Value\u201d is as defined in Customs"
+    }
+  ],
+  "11.63": [
+    {
+      "vector_index": 118,
+      "chapter_num": 11,
+      "section_full": "Section 11.63: \u201cWild Animal\u201d means any wild animal as"
+    }
+  ],
+  "2.00": [
+    {
+      "vector_index": 120,
+      "chapter_num": 2,
+      "section_full": "Section 2.00: Objective"
+    }
+  ],
+  "2.01": [
+    {
+      "vector_index": 121,
+      "chapter_num": 2,
+      "section_full": "Section 2.01: Policy regarding import /Exports of goods"
+    }
+  ],
+  "2.02": [
+    {
+      "vector_index": 122,
+      "chapter_num": 2,
+      "section_full": "Section 2.02: Indian Trade Classification (Harmonised"
+    }
+  ],
+  "2.03": [
+    {
+      "vector_index": 123,
+      "chapter_num": 2,
+      "section_full": "Section 2.03: Compliance of Imports with Domestic"
+    },
+    {
+      "vector_index": 124,
+      "chapter_num": 2,
+      "section_full": "Section 2.03: Compliance of Imports with Domestic"
+    },
+    {
+      "vector_index": 125,
+      "chapter_num": 2,
+      "section_full": "Section 2.03: Compliance of Imports with Domestic"
+    },
+    {
+      "vector_index": 126,
+      "chapter_num": 2,
+      "section_full": "Section 2.03: Compliance of Imports with Domestic"
+    },
+    {
+      "vector_index": 127,
+      "chapter_num": 2,
+      "section_full": "Section 2.03: Compliance of Imports with Domestic"
+    }
+  ],
+  "2.04": [
+    {
+      "vector_index": 128,
+      "chapter_num": 2,
+      "section_full": "Section 2.04: Authority to specify Procedures"
+    }
+  ],
+  "2.05": [
+    {
+      "vector_index": 129,
+      "chapter_num": 2,
+      "section_full": "Section 2.05: Importer-Exporter Code (IEC)"
+    },
+    {
+      "vector_index": 130,
+      "chapter_num": 2,
+      "section_full": "Section 2.05: Importer-Exporter Code (IEC)"
+    }
+  ],
+  "2.06": [
+    {
+      "vector_index": 131,
+      "chapter_num": 2,
+      "section_full": "Section 2.06: Mandatory documents for export/ import"
+    },
+    {
+      "vector_index": 132,
+      "chapter_num": 2,
+      "section_full": "Section 2.06: Mandatory documents for export/ import"
+    }
+  ],
+  "2.07": [
+    {
+      "vector_index": 133,
+      "chapter_num": 2,
+      "section_full": "Section 2.07: Principles of Restrictions"
+    },
+    {
+      "vector_index": 134,
+      "chapter_num": 2,
+      "section_full": "Section 2.07: Principles of Restrictions"
+    },
+    {
+      "vector_index": 135,
+      "chapter_num": 2,
+      "section_full": "Section 2.07: Principles of Restrictions"
+    }
+  ],
+  "2.10": [
+    {
+      "vector_index": 136,
+      "chapter_num": 2,
+      "section_full": "Section 2.10: Terms and Conditions of an"
+    }
+  ],
+  "2.11": [
+    {
+      "vector_index": 137,
+      "chapter_num": 2,
+      "section_full": "Section 2.11: Application Fee"
+    }
+  ],
+  "2.08": [
+    {
+      "vector_index": 138,
+      "chapter_num": 2,
+      "section_full": "Section 2.08: Export/Import of Restricted"
+    }
+  ],
+  "2.09": [
+    {
+      "vector_index": 139,
+      "chapter_num": 2,
+      "section_full": "Section 2.09: Actual User Condition"
+    }
+  ],
+  "2.12": [
+    {
+      "vector_index": 140,
+      "chapter_num": 2,
+      "section_full": "Section 2.12: Clearance of Goods from Customs"
+    }
+  ],
+  "2.13": [
+    {
+      "vector_index": 141,
+      "chapter_num": 2,
+      "section_full": "Section 2.13: Authorisation - not a Right"
+    }
+  ],
+  "2.14": [
+    {
+      "vector_index": 142,
+      "chapter_num": 2,
+      "section_full": "Section 2.14: Penal action and placing of an entity"
+    },
+    {
+      "vector_index": 143,
+      "chapter_num": 2,
+      "section_full": "Section 2.14: Penal action and placing of an entity"
+    }
+  ],
+  "2.15": [
+    {
+      "vector_index": 144,
+      "chapter_num": 2,
+      "section_full": "Section 2.15: Firm/company under adjudication"
+    }
+  ],
+  "2.16": [
+    {
+      "vector_index": 145,
+      "chapter_num": 2,
+      "section_full": "Section 2.16: Prohibition on Import and Export of"
+    }
+  ],
+  "2.18": [
+    {
+      "vector_index": 147,
+      "chapter_num": 2,
+      "section_full": "Section 2.18: Prohibition on direct or indirect import"
+    }
+  ],
+  "2.19": [
+    {
+      "vector_index": 148,
+      "chapter_num": 2,
+      "section_full": "Section 2.19: Direct or Indirect Export/Import"
+    }
+  ],
+  "2.20": [
+    {
+      "vector_index": 149,
+      "chapter_num": 2,
+      "section_full": "Section 2.20: Prohibition on Import of Charcoal"
+    }
+  ],
+  "2.21": [
+    {
+      "vector_index": 150,
+      "chapter_num": 2,
+      "section_full": "Section 2.21: State Trading Enterprises (STEs)"
+    }
+  ],
+  "2.22": [
+    {
+      "vector_index": 151,
+      "chapter_num": 2,
+      "section_full": "Section 2.22: Trade with Neighbouring Countries"
+    }
+  ],
+  "2.23": [
+    {
+      "vector_index": 152,
+      "chapter_num": 2,
+      "section_full": "Section 2.23: Transit Facility"
+    }
+  ],
+  "2.24": [
+    {
+      "vector_index": 153,
+      "chapter_num": 2,
+      "section_full": "Section 2.24: Trade with Russia under Debt-"
+    }
+  ],
+  "2.25": [
+    {
+      "vector_index": 154,
+      "chapter_num": 2,
+      "section_full": "Section 2.25: Import of Samples"
+    }
+  ],
+  "2.26": [
+    {
+      "vector_index": 155,
+      "chapter_num": 2,
+      "section_full": "Section 2.26: Import of Gifts"
+    }
+  ],
+  "2.27": [
+    {
+      "vector_index": 156,
+      "chapter_num": 2,
+      "section_full": "Section 2.27: Import through Passenger Baggage"
+    }
+  ],
+  "2.28": [
+    {
+      "vector_index": 157,
+      "chapter_num": 2,
+      "section_full": "Section 2.28: Re \u2013 import of goods repaired abroad"
+    }
+  ],
+  "2.29": [
+    {
+      "vector_index": 158,
+      "chapter_num": 2,
+      "section_full": "Section 2.29: Import of goods used in"
+    }
+  ],
+  "2.30": [
+    {
+      "vector_index": 159,
+      "chapter_num": 2,
+      "section_full": "Section 2.30: Import of Prototypes"
+    }
+  ],
+  "2.31": [
+    {
+      "vector_index": 160,
+      "chapter_num": 2,
+      "section_full": "Section 2.31: Second Hand Goods"
+    },
+    {
+      "vector_index": 161,
+      "chapter_num": 2,
+      "section_full": "Section 2.31: Second Hand Goods"
+    },
+    {
+      "vector_index": 162,
+      "chapter_num": 2,
+      "section_full": "Section 2.31: Second Hand Goods"
+    },
+    {
+      "vector_index": 163,
+      "chapter_num": 2,
+      "section_full": "Section 2.31: Second Hand Goods"
+    }
+  ],
+  "2.32": [
+    {
+      "vector_index": 164,
+      "chapter_num": 2,
+      "section_full": "Section 2.32: Import of Metallic Waste and Scrap"
+    }
+  ],
+  "2.33": [
+    {
+      "vector_index": 165,
+      "chapter_num": 2,
+      "section_full": "Section 2.33: Removal of Scrap/Waste from SEZ"
+    }
+  ],
+  "2.34": [
+    {
+      "vector_index": 166,
+      "chapter_num": 2,
+      "section_full": "Section 2.34: Import under Lease Financing"
+    }
+  ],
+  "2.35": [
+    {
+      "vector_index": 167,
+      "chapter_num": 2,
+      "section_full": "Section 2.35: Execution of Legal Undertaking (LUT)"
+    }
+  ],
+  "2.36": [
+    {
+      "vector_index": 168,
+      "chapter_num": 2,
+      "section_full": "Section 2.36: Private/Public Bonded Warehouses for"
+    }
+  ],
+  "2.37": [
+    {
+      "vector_index": 169,
+      "chapter_num": 2,
+      "section_full": "Section 2.37: Special provision for Hides Skins and"
+    }
+  ],
+  "2.38": [
+    {
+      "vector_index": 170,
+      "chapter_num": 2,
+      "section_full": "Section 2.38: Sale on High Seas"
+    }
+  ],
+  "2.39": [
+    {
+      "vector_index": 171,
+      "chapter_num": 2,
+      "section_full": "Section 2.39: Merchanting Trade"
+    }
+  ],
+  "2.40": [
+    {
+      "vector_index": 172,
+      "chapter_num": 2,
+      "section_full": "Section 2.40: Free Exports"
+    }
+  ],
+  "2.41": [
+    {
+      "vector_index": 173,
+      "chapter_num": 2,
+      "section_full": "Section 2.41: Benefits for Supporting Manufacturers"
+    }
+  ],
+  "2.42": [
+    {
+      "vector_index": 174,
+      "chapter_num": 2,
+      "section_full": "Section 2.42: Third Party Exports"
+    }
+  ],
+  "2.43": [
+    {
+      "vector_index": 175,
+      "chapter_num": 2,
+      "section_full": "Section 2.43: Export of Samples"
+    }
+  ],
+  "2.44": [
+    {
+      "vector_index": 176,
+      "chapter_num": 2,
+      "section_full": "Section 2.44: Export of Gifts"
+    }
+  ],
+  "2.45": [
+    {
+      "vector_index": 177,
+      "chapter_num": 2,
+      "section_full": "Section 2.45: Export of Passenger Baggage"
+    },
+    {
+      "vector_index": 178,
+      "chapter_num": 2,
+      "section_full": "Section 2.45: Export of Passenger Baggage"
+    }
+  ],
+  "2.46": [
+    {
+      "vector_index": 179,
+      "chapter_num": 2,
+      "section_full": "Section 2.46: Import for Export"
+    },
+    {
+      "vector_index": 180,
+      "chapter_num": 2,
+      "section_full": "Section 2.46: Import for Export"
+    }
+  ],
+  "2.47": [
+    {
+      "vector_index": 181,
+      "chapter_num": 2,
+      "section_full": "Section 2.47: Export of Replacement Goods"
+    }
+  ],
+  "2.48": [
+    {
+      "vector_index": 182,
+      "chapter_num": 2,
+      "section_full": "Section 2.48: Export of Repaired Goods"
+    }
+  ],
+  "2.49": [
+    {
+      "vector_index": 183,
+      "chapter_num": 2,
+      "section_full": "Section 2.49: Export of Spares"
+    }
+  ],
+  "2.50": [
+    {
+      "vector_index": 184,
+      "chapter_num": 2,
+      "section_full": "Section 2.50: Re-export of imported Goods found"
+    }
+  ],
+  "2.51": [
+    {
+      "vector_index": 185,
+      "chapter_num": 2,
+      "section_full": "Section 2.51: Private Bonded Warehouses for"
+    }
+  ],
+  "2.52": [
+    {
+      "vector_index": 186,
+      "chapter_num": 2,
+      "section_full": "Section 2.52: Denomination of Export Contracts"
+    },
+    {
+      "vector_index": 187,
+      "chapter_num": 2,
+      "section_full": "Section 2.52: Denomination of Export Contracts"
+    },
+    {
+      "vector_index": 188,
+      "chapter_num": 2,
+      "section_full": "Section 2.52: Denomination of Export Contracts"
+    }
+  ],
+  "2.53": [
+    {
+      "vector_index": 189,
+      "chapter_num": 2,
+      "section_full": "Section 2.53: Applicability of FTP Schemes for"
+    }
+  ],
+  "2.55": [
+    {
+      "vector_index": 190,
+      "chapter_num": 2,
+      "section_full": "Section 2.55: Export Credit Agencies (ECAs)"
+    },
+    {
+      "vector_index": 191,
+      "chapter_num": 2,
+      "section_full": "Section 2.55: Export Credit Agencies (ECAs)"
+    }
+  ],
+  "2.54": [
+    {
+      "vector_index": 192,
+      "chapter_num": 2,
+      "section_full": "Section 2.54: Non-Realisation of Export Proceeds"
+    }
+  ],
+  "2.56": [
+    {
+      "vector_index": 193,
+      "chapter_num": 2,
+      "section_full": "Section 2.56: Recognition of EPCs to function as"
+    }
+  ],
+  "2.57": [
+    {
+      "vector_index": 194,
+      "chapter_num": 2,
+      "section_full": "Section 2.57: Registration-cum-Membership"
+    }
+  ],
+  "2.58": [
+    {
+      "vector_index": 195,
+      "chapter_num": 2,
+      "section_full": "Section 2.58: Interpretation of Policy"
+    }
+  ],
+  "2.59": [
+    {
+      "vector_index": 196,
+      "chapter_num": 2,
+      "section_full": "Section 2.59: Exemption from Policy/Procedures"
+    }
+  ],
+  "2.60": [
+    {
+      "vector_index": 197,
+      "chapter_num": 2,
+      "section_full": "Section 2.60: Personal Hearing by DGFT for"
+    }
+  ],
+  "2.61": [
+    {
+      "vector_index": 198,
+      "chapter_num": 2,
+      "section_full": "Section 2.61: Regularization of EO default and"
+    }
+  ],
+  "2.62": [
+    {
+      "vector_index": 199,
+      "chapter_num": 2,
+      "section_full": "Section 2.62: Approved Exporter Scheme for"
+    },
+    {
+      "vector_index": 200,
+      "chapter_num": 2,
+      "section_full": "Section 2.62: Approved Exporter Scheme for"
+    }
+  ],
+  "2.63": [
+    {
+      "vector_index": 201,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 202,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 203,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 204,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 205,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 206,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 207,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 208,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    },
+    {
+      "vector_index": 209,
+      "chapter_num": 2,
+      "section_full": "Section 2.63: Certification of Origin of Goods"
+    }
+  ],
+  "4.02": [
+    {
+      "vector_index": 220,
+      "chapter_num": 4,
+      "section_full": "Section 4.02: Applicability of Policy & Procedures"
+    },
+    {
+      "vector_index": 221,
+      "chapter_num": 4,
+      "section_full": "Section 4.02: Applicability of Policy & Procedures"
+    },
+    {
+      "vector_index": 222,
+      "chapter_num": 4,
+      "section_full": "Section 4.02: Applicability of Policy & Procedures"
+    },
+    {
+      "vector_index": 223,
+      "chapter_num": 4,
+      "section_full": "Section 4.02: Applicability of Policy & Procedures"
+    },
+    {
+      "vector_index": 224,
+      "chapter_num": 4,
+      "section_full": "Section 4.02: Applicability of Policy & Procedures"
+    }
+  ],
+  "4.04": [
+    {
+      "vector_index": 225,
+      "chapter_num": 4,
+      "section_full": "Section 4.04: Advance Authorisation for Spices"
+    }
+  ],
+  "4.05": [
+    {
+      "vector_index": 226,
+      "chapter_num": 4,
+      "section_full": "Section 4.05: Eligible Applicant / Export /Supply"
+    },
+    {
+      "vector_index": 227,
+      "chapter_num": 4,
+      "section_full": "Section 4.05: Eligible Applicant / Export /Supply"
+    },
+    {
+      "vector_index": 228,
+      "chapter_num": 4,
+      "section_full": "Section 4.05: Eligible Applicant / Export /Supply"
+    },
+    {
+      "vector_index": 229,
+      "chapter_num": 4,
+      "section_full": "Section 4.05: Eligible Applicant / Export /Supply"
+    },
+    {
+      "vector_index": 230,
+      "chapter_num": 4,
+      "section_full": "Section 4.05: Eligible Applicant / Export /Supply"
+    }
+  ],
+  "4.06": [
+    {
+      "vector_index": 231,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 232,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 233,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 234,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 235,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 236,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: Self-Ratification\u00a0Scheme"
+    },
+    {
+      "vector_index": 239,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: of Hand Book of Procedures to the Norms"
+    },
+    {
+      "vector_index": 240,
+      "chapter_num": 4,
+      "section_full": "Section 4.06: of Hand Book of Procedures to the Norms"
+    }
+  ],
+  "4.07": [
+    {
+      "vector_index": 237,
+      "chapter_num": 4,
+      "section_full": "Section 4.07: Advance"
+    },
+    {
+      "vector_index": 238,
+      "chapter_num": 4,
+      "section_full": "Section 4.07: Advance"
+    }
+  ],
+  "4.12": [
+    {
+      "vector_index": 241,
+      "chapter_num": 4,
+      "section_full": "Section 4.12: Accounting of Input"
+    },
+    {
+      "vector_index": 242,
+      "chapter_num": 4,
+      "section_full": "Section 4.12: Accounting of Input"
+    },
+    {
+      "vector_index": 243,
+      "chapter_num": 4,
+      "section_full": "Section 4.12: Accounting of Input"
+    },
+    {
+      "vector_index": 244,
+      "chapter_num": 4,
+      "section_full": "Section 4.12: Accounting of Input"
+    },
+    {
+      "vector_index": 245,
+      "chapter_num": 4,
+      "section_full": "Section 4.12: Accounting of Input"
+    }
+  ],
+  "4.18": [
+    {
+      "vector_index": 246,
+      "chapter_num": 4,
+      "section_full": "Section 4.18: Importability / Exportability of items"
+    },
+    {
+      "vector_index": 247,
+      "chapter_num": 4,
+      "section_full": "Section 4.18: Importability / Exportability of items"
+    },
+    {
+      "vector_index": 248,
+      "chapter_num": 4,
+      "section_full": "Section 4.18: Importability / Exportability of items"
+    },
+    {
+      "vector_index": 249,
+      "chapter_num": 4,
+      "section_full": "Section 4.18: Importability / Exportability of items"
+    }
+  ],
+  "4.23": [
+    {
+      "vector_index": 250,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: of FTP shall be applicable to DFIA also."
+    },
+    {
+      "vector_index": 251,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: Re-import of exported goods under"
+    },
+    {
+      "vector_index": 252,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: Re-import of exported goods under"
+    },
+    {
+      "vector_index": 253,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: Re-import of exported goods under"
+    },
+    {
+      "vector_index": 254,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: Re-import of exported goods under"
+    },
+    {
+      "vector_index": 255,
+      "chapter_num": 4,
+      "section_full": "Section 4.23: Re-import of exported goods under"
+    }
+  ],
+  "4.29": [
+    {
+      "vector_index": 256,
+      "chapter_num": 4,
+      "section_full": "Section 4.29: Sensitive Items under Duty Free"
+    },
+    {
+      "vector_index": 257,
+      "chapter_num": 4,
+      "section_full": "Section 4.29: Sensitive Items under Duty Free"
+    },
+    {
+      "vector_index": 258,
+      "chapter_num": 4,
+      "section_full": "Section 4.29: Sensitive Items under Duty Free"
+    },
+    {
+      "vector_index": 259,
+      "chapter_num": 4,
+      "section_full": "Section 4.29: Sensitive Items under Duty Free"
+    },
+    {
+      "vector_index": 260,
+      "chapter_num": 4,
+      "section_full": "Section 4.29: Sensitive Items under Duty Free"
+    }
+  ],
+  "4.33": [
+    {
+      "vector_index": 261,
+      "chapter_num": 4,
+      "section_full": "Section 4.33: Advance Procurement/"
+    },
+    {
+      "vector_index": 262,
+      "chapter_num": 4,
+      "section_full": "Section 4.33: Advance Procurement/"
+    },
+    {
+      "vector_index": 263,
+      "chapter_num": 4,
+      "section_full": "Section 4.33: Advance Procurement/"
+    },
+    {
+      "vector_index": 264,
+      "chapter_num": 4,
+      "section_full": "Section 4.33: Advance Procurement/"
+    },
+    {
+      "vector_index": 265,
+      "chapter_num": 4,
+      "section_full": "Section 4.33: Advance Procurement/"
+    }
+  ],
+  "4.40": [
+    {
+      "vector_index": 266,
+      "chapter_num": 4,
+      "section_full": "Section 4.40: Nominated Agencies"
+    }
+  ],
+  "4.73": [
+    {
+      "vector_index": 267,
+      "chapter_num": 4,
+      "section_full": "Section 4.73: of Handbook of Procedures."
+    },
+    {
+      "vector_index": 268,
+      "chapter_num": 4,
+      "section_full": "Section 4.73: of Hand Book of Procedures may export cut & polished"
+    },
+    {
+      "vector_index": 269,
+      "chapter_num": 4,
+      "section_full": "Section 4.73: of Hand Book of Procedures may export cut & polished"
+    },
+    {
+      "vector_index": 270,
+      "chapter_num": 4,
+      "section_full": "Section 4.73: of Hand Book of Procedures may export cut & polished"
+    }
+  ],
+  "4.60": [
+    {
+      "vector_index": 271,
+      "chapter_num": 4,
+      "section_full": "Section 4.60: of Handbook of Procedures. In such cases of"
+    },
+    {
+      "vector_index": 290,
+      "chapter_num": 4,
+      "section_full": "Section 4.60: Diamond Imprest Authorisation (DIA)"
+    }
+  ],
+  "4.46": [
+    {
+      "vector_index": 272,
+      "chapter_num": 4,
+      "section_full": "Section 4.46: Personal Carriage of Export /Import"
+    },
+    {
+      "vector_index": 273,
+      "chapter_num": 4,
+      "section_full": "Section 4.46: Personal Carriage of Export /Import"
+    },
+    {
+      "vector_index": 274,
+      "chapter_num": 4,
+      "section_full": "Section 4.46: Personal Carriage of Export /Import"
+    },
+    {
+      "vector_index": 275,
+      "chapter_num": 4,
+      "section_full": "Section 4.46: Personal Carriage of Export /Import"
+    },
+    {
+      "vector_index": 276,
+      "chapter_num": 4,
+      "section_full": "Section 4.46: Personal Carriage of Export /Import"
+    }
+  ],
+  "4.51": [
+    {
+      "vector_index": 277,
+      "chapter_num": 4,
+      "section_full": "Section 4.51: Export of cut & polished precious and semi-"
+    },
+    {
+      "vector_index": 278,
+      "chapter_num": 4,
+      "section_full": "Section 4.51: Export of cut & polished precious and semi-"
+    },
+    {
+      "vector_index": 279,
+      "chapter_num": 4,
+      "section_full": "Section 4.51: Export of cut & polished precious and semi-"
+    },
+    {
+      "vector_index": 280,
+      "chapter_num": 4,
+      "section_full": "Section 4.51: Export of cut & polished precious and semi-"
+    }
+  ],
+  "4.55": [
+    {
+      "vector_index": 281,
+      "chapter_num": 4,
+      "section_full": "Section 4.55: Ineligible Supplies/ Items/Categories"
+    },
+    {
+      "vector_index": 282,
+      "chapter_num": 4,
+      "section_full": "Section 4.55: Ineligible Supplies/ Items/Categories"
+    },
+    {
+      "vector_index": 283,
+      "chapter_num": 4,
+      "section_full": "Section 4.55: A"
+    },
+    {
+      "vector_index": 284,
+      "chapter_num": 4,
+      "section_full": "Section 4.55: B"
+    }
+  ],
+  "4.57": [
+    {
+      "vector_index": 285,
+      "chapter_num": 4,
+      "section_full": "Section 4.57: Monitoring, Audit and Risk"
+    }
+  ],
+  "4.59": [
+    {
+      "vector_index": 286,
+      "chapter_num": 4,
+      "section_full": "Section 4.59: The Appendix 4R containing the eligible RoDTEP"
+    }
+  ],
+  "4.62": [
+    {
+      "vector_index": 287,
+      "chapter_num": 4,
+      "section_full": "Section 4.62: Export Obligation"
+    }
+  ],
+  "4.63": [
+    {
+      "vector_index": 288,
+      "chapter_num": 4,
+      "section_full": "Section 4.63: Details of Duties exempted"
+    }
+  ],
+  "4.64": [
+    {
+      "vector_index": 289,
+      "chapter_num": 4,
+      "section_full": "Section 4.64: Actual User Condition and Pre-Import Condition"
+    }
+  ],
+  "4.61": [
+    {
+      "vector_index": 291,
+      "chapter_num": 4,
+      "section_full": "Section 4.61: Eligibility"
+    }
+  ],
+  "5.00": [
+    {
+      "vector_index": 293,
+      "chapter_num": 5,
+      "section_full": "Section 5.00: Objective"
+    }
+  ],
+  "5.01": [
+    {
+      "vector_index": 294,
+      "chapter_num": 5,
+      "section_full": "Section 5.01: EPCG Scheme"
+    },
+    {
+      "vector_index": 295,
+      "chapter_num": 5,
+      "section_full": "Section 5.01: EPCG Scheme"
+    },
+    {
+      "vector_index": 296,
+      "chapter_num": 5,
+      "section_full": "Section 5.01: EPCG Scheme"
+    }
+  ],
+  "5.02": [
+    {
+      "vector_index": 297,
+      "chapter_num": 5,
+      "section_full": "Section 5.02: Coverage"
+    },
+    {
+      "vector_index": 298,
+      "chapter_num": 5,
+      "section_full": "Section 5.02: Coverage"
+    }
+  ],
+  "5.03": [
+    {
+      "vector_index": 299,
+      "chapter_num": 5,
+      "section_full": "Section 5.03: Actual User Condition"
+    }
+  ],
+  "5.04": [
+    {
+      "vector_index": 300,
+      "chapter_num": 5,
+      "section_full": "Section 5.04: Export obligation"
+    },
+    {
+      "vector_index": 301,
+      "chapter_num": 5,
+      "section_full": "Section 5.04: Export obligation"
+    },
+    {
+      "vector_index": 302,
+      "chapter_num": 5,
+      "section_full": "Section 5.04: Export obligation"
+    }
+  ],
+  "5.10": [
+    {
+      "vector_index": 303,
+      "chapter_num": 5,
+      "section_full": "Section 5.10: and 5.11 shall be admissible."
+    },
+    {
+      "vector_index": 309,
+      "chapter_num": 5,
+      "section_full": "Section 5.10: Reduced EO for Green Technology"
+    }
+  ],
+  "5.05": [
+    {
+      "vector_index": 304,
+      "chapter_num": 5,
+      "section_full": "Section 5.05: Provision"
+    }
+  ],
+  "5.06": [
+    {
+      "vector_index": 305,
+      "chapter_num": 5,
+      "section_full": "Section 5.06: LUT/Bond/BG in case of Agro units"
+    }
+  ],
+  "5.07": [
+    {
+      "vector_index": 306,
+      "chapter_num": 5,
+      "section_full": "Section 5.07: Indigenous Sourcing of Capital Goods"
+    }
+  ],
+  "5.08": [
+    {
+      "vector_index": 307,
+      "chapter_num": 5,
+      "section_full": "Section 5.08: Calculation of Export Obligation"
+    }
+  ],
+  "5.09": [
+    {
+      "vector_index": 308,
+      "chapter_num": 5,
+      "section_full": "Section 5.09: Incentive for early EO fulfillment"
+    }
+  ],
+  "5.11": [
+    {
+      "vector_index": 310,
+      "chapter_num": 5,
+      "section_full": "Section 5.11: Reduced EO for North East Region and"
+    }
+  ],
+  "5.12": [
+    {
+      "vector_index": 311,
+      "chapter_num": 5,
+      "section_full": "Section 5.12: Exemption from maintenance of"
+    }
+  ],
+  "5.13": [
+    {
+      "vector_index": 312,
+      "chapter_num": 5,
+      "section_full": "Section 5.13: Transitional Arrangements:"
+    }
+  ],
+  "6.00": [
+    {
+      "vector_index": 314,
+      "chapter_num": 6,
+      "section_full": "Section 6.00: Introduction and Objective"
+    }
+  ],
+  "6.01": [
+    {
+      "vector_index": 315,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 316,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 317,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 318,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 319,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 320,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: Export and Import of Goods"
+    },
+    {
+      "vector_index": 323,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: (d) (ii) and (iii) above, as the case may be in"
+    },
+    {
+      "vector_index": 324,
+      "chapter_num": 6,
+      "section_full": "Section 6.01: (d) (ii) and (iii) above, as the case may be in"
+    }
+  ],
+  "6.02": [
+    {
+      "vector_index": 321,
+      "chapter_num": 6,
+      "section_full": "Section 6.02: Second hand Capital Goods"
+    }
+  ],
+  "6.03": [
+    {
+      "vector_index": 322,
+      "chapter_num": 6,
+      "section_full": "Section 6.03: Leasing of Capital Goods"
+    }
+  ],
+  "6.04": [
+    {
+      "vector_index": 325,
+      "chapter_num": 6,
+      "section_full": "Section 6.04: Net Foreign Exchange Earnings"
+    }
+  ],
+  "6.05": [
+    {
+      "vector_index": 326,
+      "chapter_num": 6,
+      "section_full": "Section 6.05: Applications & Approvals/Letter of"
+    },
+    {
+      "vector_index": 327,
+      "chapter_num": 6,
+      "section_full": "Section 6.05: Applications & Approvals/Letter of"
+    }
+  ],
+  "6.06": [
+    {
+      "vector_index": 328,
+      "chapter_num": 6,
+      "section_full": "Section 6.06: Investment Criteria"
+    }
+  ],
+  "6.07": [
+    {
+      "vector_index": 329,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 330,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 331,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 332,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 333,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 334,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    },
+    {
+      "vector_index": 335,
+      "chapter_num": 6,
+      "section_full": "Section 6.07: DTA Sale of Finished Products/Rejects/"
+    }
+  ],
+  "6.08": [
+    {
+      "vector_index": 336,
+      "chapter_num": 6,
+      "section_full": "Section 6.08: Other Supplies counted \ue02cor \ue02culflment"
+    },
+    {
+      "vector_index": 337,
+      "chapter_num": 6,
+      "section_full": "Section 6.08: Other Supplies counted \ue02cor \ue02culflment"
+    },
+    {
+      "vector_index": 338,
+      "chapter_num": 6,
+      "section_full": "Section 6.08: Other Supplies counted \ue02cor \ue02culflment"
+    }
+  ],
+  "6.09": [
+    {
+      "vector_index": 339,
+      "chapter_num": 6,
+      "section_full": "Section 6.09: Export through others"
+    }
+  ],
+  "6.10": [
+    {
+      "vector_index": 340,
+      "chapter_num": 6,
+      "section_full": "Section 6.10: Entitlement for Supplies from the DTA"
+    },
+    {
+      "vector_index": 341,
+      "chapter_num": 6,
+      "section_full": "Section 6.10: Entitlement for Supplies from the DTA"
+    }
+  ],
+  "6.11": [
+    {
+      "vector_index": 342,
+      "chapter_num": 6,
+      "section_full": "Section 6.11: Other Entitlements"
+    },
+    {
+      "vector_index": 343,
+      "chapter_num": 6,
+      "section_full": "Section 6.11: Other Entitlements"
+    },
+    {
+      "vector_index": 344,
+      "chapter_num": 6,
+      "section_full": "Section 6.11: Other Entitlements"
+    }
+  ],
+  "6.12": [
+    {
+      "vector_index": 345,
+      "chapter_num": 6,
+      "section_full": "Section 6.12: Inter Unit Transfer"
+    },
+    {
+      "vector_index": 346,
+      "chapter_num": 6,
+      "section_full": "Section 6.12: Inter Unit Transfer"
+    },
+    {
+      "vector_index": 347,
+      "chapter_num": 6,
+      "section_full": "Section 6.12: Inter Unit Transfer"
+    }
+  ],
+  "6.13": [
+    {
+      "vector_index": 348,
+      "chapter_num": 6,
+      "section_full": "Section 6.13: Sub\u2013Contracting"
+    },
+    {
+      "vector_index": 349,
+      "chapter_num": 6,
+      "section_full": "Section 6.13: Sub\u2013Contracting"
+    },
+    {
+      "vector_index": 350,
+      "chapter_num": 6,
+      "section_full": "Section 6.13: Sub\u2013Contracting"
+    }
+  ],
+  "6.14": [
+    {
+      "vector_index": 351,
+      "chapter_num": 6,
+      "section_full": "Section 6.14: Sale of Unutilized Material and"
+    },
+    {
+      "vector_index": 352,
+      "chapter_num": 6,
+      "section_full": "Section 6.14: Sale of Unutilized Material and"
+    }
+  ],
+  "6.15": [
+    {
+      "vector_index": 353,
+      "chapter_num": 6,
+      "section_full": "Section 6.15: Reconditioning/Repair and Re-"
+    }
+  ],
+  "6.16": [
+    {
+      "vector_index": 354,
+      "chapter_num": 6,
+      "section_full": "Section 6.16: Replacement / Repair of Imported /"
+    },
+    {
+      "vector_index": 355,
+      "chapter_num": 6,
+      "section_full": "Section 6.16: Replacement / Repair of Imported /"
+    }
+  ],
+  "6.17": [
+    {
+      "vector_index": 356,
+      "chapter_num": 6,
+      "section_full": "Section 6.17: Exit from the Scheme"
+    },
+    {
+      "vector_index": 357,
+      "chapter_num": 6,
+      "section_full": "Section 6.17: Exit from the Scheme"
+    },
+    {
+      "vector_index": 358,
+      "chapter_num": 6,
+      "section_full": "Section 6.17: Exit from the Scheme"
+    },
+    {
+      "vector_index": 359,
+      "chapter_num": 6,
+      "section_full": "Section 6.17: Exit from the Scheme"
+    }
+  ],
+  "6.18": [
+    {
+      "vector_index": 360,
+      "chapter_num": 6,
+      "section_full": "Section 6.18: Conversion"
+    }
+  ],
+  "6.19": [
+    {
+      "vector_index": 361,
+      "chapter_num": 6,
+      "section_full": "Section 6.19: Monitoring of NFE"
+    }
+  ],
+  "6.20": [
+    {
+      "vector_index": 362,
+      "chapter_num": 6,
+      "section_full": "Section 6.20: Export"
+    }
+  ],
+  "6.21": [
+    {
+      "vector_index": 363,
+      "chapter_num": 6,
+      "section_full": "Section 6.21: Personal Carriage of Import / Export"
+    }
+  ],
+  "6.22": [
+    {
+      "vector_index": 364,
+      "chapter_num": 6,
+      "section_full": "Section 6.22: Export /Import by Post/ Courier"
+    }
+  ],
+  "6.23": [
+    {
+      "vector_index": 365,
+      "chapter_num": 6,
+      "section_full": "Section 6.23: Administration of EOU / EHTP / STP"
+    }
+  ],
+  "7.00": [
+    {
+      "vector_index": 367,
+      "chapter_num": 7,
+      "section_full": "Section 7.00: Objective"
+    }
+  ],
+  "7.01": [
+    {
+      "vector_index": 368,
+      "chapter_num": 7,
+      "section_full": "Section 7.01: Deemed Exports"
+    }
+  ],
+  "7.02": [
+    {
+      "vector_index": 369,
+      "chapter_num": 7,
+      "section_full": "Section 7.02: below shall be regarded as \u201cDeemed Exports\u201d"
+    },
+    {
+      "vector_index": 370,
+      "chapter_num": 7,
+      "section_full": "Section 7.02: Categories of Supply"
+    },
+    {
+      "vector_index": 371,
+      "chapter_num": 7,
+      "section_full": "Section 7.02: Categories of Supply"
+    },
+    {
+      "vector_index": 372,
+      "chapter_num": 7,
+      "section_full": "Section 7.02: Categories of Supply"
+    },
+    {
+      "vector_index": 373,
+      "chapter_num": 7,
+      "section_full": "Section 7.02: Categories of Supply"
+    }
+  ],
+  "7.03": [
+    {
+      "vector_index": 374,
+      "chapter_num": 7,
+      "section_full": "Section 7.03: Benefits for Deemed Exports"
+    }
+  ],
+  "7.04": [
+    {
+      "vector_index": 375,
+      "chapter_num": 7,
+      "section_full": "Section 7.04: Benefits to the Supplier /Recipient"
+    }
+  ],
+  "7.05": [
+    {
+      "vector_index": 376,
+      "chapter_num": 7,
+      "section_full": "Section 7.05: Conditions for refund of Terminal"
+    }
+  ],
+  "7.06": [
+    {
+      "vector_index": 377,
+      "chapter_num": 7,
+      "section_full": "Section 7.06: Conditions for refund of Deemed"
+    }
+  ],
+  "7.07": [
+    {
+      "vector_index": 378,
+      "chapter_num": 7,
+      "section_full": "Section 7.07: Common conditions for deemed export"
+    },
+    {
+      "vector_index": 379,
+      "chapter_num": 7,
+      "section_full": "Section 7.07: Common conditions for deemed export"
+    }
+  ],
+  "7.08": [
+    {
+      "vector_index": 380,
+      "chapter_num": 7,
+      "section_full": "Section 7.08: Benefits on specified supplies"
+    }
+  ],
+  "7.09": [
+    {
+      "vector_index": 381,
+      "chapter_num": 7,
+      "section_full": "Section 7.09: Liability of Interest"
+    }
+  ],
+  "7.10": [
+    {
+      "vector_index": 382,
+      "chapter_num": 7,
+      "section_full": "Section 7.10: Risk Management and Internal Audit"
+    }
+  ],
+  "7.11": [
+    {
+      "vector_index": 383,
+      "chapter_num": 7,
+      "section_full": "Section 7.11: Penal Action"
+    }
+  ],
+  "8.00": [
+    {
+      "vector_index": 385,
+      "chapter_num": 8,
+      "section_full": "Section 8.00: Objective"
+    }
+  ],
+  "8.01": [
+    {
+      "vector_index": 386,
+      "chapter_num": 8,
+      "section_full": "Section 8.01: Quality Complaints/ Trade disputes"
+    }
+  ],
+  "8.02": [
+    {
+      "vector_index": 387,
+      "chapter_num": 8,
+      "section_full": "Section 8.02: Obligation on the part of importer/"
+    },
+    {
+      "vector_index": 388,
+      "chapter_num": 8,
+      "section_full": "Section 8.02: Obligation on the part of importer/"
+    }
+  ],
+  "8.03": [
+    {
+      "vector_index": 389,
+      "chapter_num": 8,
+      "section_full": "Section 8.03: Provisions in FT (D&R) Act, 1992, as"
+    },
+    {
+      "vector_index": 390,
+      "chapter_num": 8,
+      "section_full": "Section 8.03: Provisions in FT (D&R) Act, 1992, as"
+    }
+  ],
+  "8.04": [
+    {
+      "vector_index": 391,
+      "chapter_num": 8,
+      "section_full": "Section 8.04: Mechanism for handling of Complaints/"
+    },
+    {
+      "vector_index": 392,
+      "chapter_num": 8,
+      "section_full": "Section 8.04: Mechanism for handling of Complaints/"
+    }
+  ],
+  "8.05": [
+    {
+      "vector_index": 393,
+      "chapter_num": 8,
+      "section_full": "Section 8.05: Proceedings under CQCTD"
+    }
+  ],
+  "8.06": [
+    {
+      "vector_index": 394,
+      "chapter_num": 8,
+      "section_full": "Section 8.06: Procedures to deal with complaints"
+    }
+  ],
+  "8.07": [
+    {
+      "vector_index": 395,
+      "chapter_num": 8,
+      "section_full": "Section 8.07: Corrective Measures"
+    },
+    {
+      "vector_index": 396,
+      "chapter_num": 8,
+      "section_full": "Section 8.07: Corrective Measures"
+    }
+  ],
+  "8.08": [
+    {
+      "vector_index": 397,
+      "chapter_num": 8,
+      "section_full": "Section 8.08: Case Officer"
+    }
+  ],
+  "8.09": [
+    {
+      "vector_index": 398,
+      "chapter_num": 8,
+      "section_full": "Section 8.09: Nodal Officer"
+    }
+  ],
+  "9.00": [
+    {
+      "vector_index": 400,
+      "chapter_num": 9,
+      "section_full": "Section 9.00: Objective"
+    }
+  ],
+  "9.01": [
+    {
+      "vector_index": 401,
+      "chapter_num": 9,
+      "section_full": "Section 9.01: E-Commerce Exports of Goods"
+    }
+  ],
+  "9.02": [
+    {
+      "vector_index": 402,
+      "chapter_num": 9,
+      "section_full": "Section 9.02: E-Commerce Exports of Services"
+    }
+  ],
+  "9.03": [
+    {
+      "vector_index": 403,
+      "chapter_num": 9,
+      "section_full": "Section 9.03: E-Commerce Platform"
+    }
+  ],
+  "9.04": [
+    {
+      "vector_index": 404,
+      "chapter_num": 9,
+      "section_full": "Section 9.04: E-Commerce Export Logistics Provider"
+    }
+  ],
+  "9.05": [
+    {
+      "vector_index": 405,
+      "chapter_num": 9,
+      "section_full": "Section 9.05: Export through Courier Service/Post"
+    }
+  ],
+  "9.06": [
+    {
+      "vector_index": 406,
+      "chapter_num": 9,
+      "section_full": "Section 9.06: Import through courier service/Post"
+    }
+  ],
+  "9.07": [
+    {
+      "vector_index": 407,
+      "chapter_num": 9,
+      "section_full": "Section 9.07: Handholding and outreach to promote"
+    }
+  ],
+  "9.08": [
+    {
+      "vector_index": 408,
+      "chapter_num": 9,
+      "section_full": "Section 9.08: Objective of E-Commerce Export Hubs"
+    }
+  ],
+  "9.09": [
+    {
+      "vector_index": 409,
+      "chapter_num": 9,
+      "section_full": "Section 9.09: Creation of ECEH"
+    }
+  ],
+  "9.10": [
+    {
+      "vector_index": 410,
+      "chapter_num": 9,
+      "section_full": "Section 9.10: Nature of ECEH Operations"
+    }
+  ],
+  "9.11": [
+    {
+      "vector_index": 411,
+      "chapter_num": 9,
+      "section_full": "Section 9.11: Entitlement under ECEHs"
+    }
+  ],
+  "9.12": [
+    {
+      "vector_index": 412,
+      "chapter_num": 9,
+      "section_full": "Section 9.12: Dak Niryat Kendras"
+    }
+  ]
+}
