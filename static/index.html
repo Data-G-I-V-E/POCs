@@ -77,9 +77,9 @@
 
                 <div class="chat-input-container">
                     <div class="input-wrapper">
-                        <textarea 
-                            id="user-input" 
-                            class="chat-input" 
+                        <textarea
+                            id="user-input"
+                            class="chat-input"
                             placeholder="Ask about exports, trade data, policies, or regulations..."
                             rows="1"
                         ></textarea>
@@ -94,29 +94,6 @@
                         </button>
                     </div>
                     <p class="input-hint">Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Visualization Section (shown inline below chat when data is available) -->
-        <section class="viz-section" id="viz-section" style="display: none;">
-            <div class="viz-header">
-                <h3>📊 Trade Data Visualization</h3>
-                <div class="viz-actions">
-                    <button id="close-viz-btn" class="btn btn-glass btn-sm" title="Close visualization">✕</button>
-                </div>
-            </div>
-            <div class="viz-body">
-                <div class="chart-wrapper" id="chart-container">
-                    <canvas id="trade-chart"></canvas>
-                    <div class="chart-placeholder" id="chart-placeholder">
-                        <p>📈 Ask about trade statistics to see visualizations here</p>
-                        <p class="chart-hint">Example: "Show export data for HS 070310"</p>
-                    </div>
-                </div>
-                <div id="chart-info" class="chart-info" style="display: none;">
-                    <h4>📋 Data Details</h4>
-                    <div id="chart-details"></div>
                 </div>
             </div>
         </section>

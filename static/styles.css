@@ -130,7 +130,7 @@ body {
     max-width: 1400px;
     width: 100%;
     margin: 0 auto;
-    padding: 1.25rem;
+    padding: 1rem 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
@@ -144,7 +144,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 500px;
-    max-height: 75vh;
+    max-height: calc(100vh - 180px);
     box-shadow: var(--shadow-md);
     overflow: hidden;
 }
@@ -289,7 +289,7 @@ body {
 
 /* === Messages === */
 .message {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
     animation: fadeInUp 0.35s ease-out;
 }
 
@@ -305,17 +305,71 @@ body {
     }
 }
 
+/* User messages — right-aligned bubble */
+.message-user {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.message-user .message-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.message-user .message-content {
+    max-width: 72%;
+    padding: 0.85rem 1.15rem;
+    background: linear-gradient(135deg, var(--primary) 0%, hsl(var(--primary-hue), 80%, 42%) 100%);
+    color: white;
+    border-radius: 18px 18px 4px 18px;
+    box-shadow: 0 4px 16px var(--primary-glow);
+    line-height: 1.65;
+    font-size: 0.93rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Assistant messages — avatar + content */
+.message-assistant {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.assistant-avatar {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, hsl(152, 55%, 26%) 0%, hsl(152, 70%, 16%) 100%);
+    border: 2px solid hsl(152, 45%, 32%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    margin-top: 2px;
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.25);
+    flex-shrink: 0;
+}
+
+.message-assistant .message-body {
+    flex: 1;
+    min-width: 0;
+}
+
 .message-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     margin-bottom: 0.4rem;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
-}
-
-.message-user .message-header {
-    color: var(--primary);
 }
 
 .message-assistant .message-header {
@@ -331,16 +385,11 @@ body {
     overflow-wrap: break-word;
 }
 
-.message-user .message-content {
-    background: linear-gradient(135deg, hsla(var(--primary-hue), 50%, 50%, 0.12) 0%, hsla(var(--primary-hue), 50%, 50%, 0.06) 100%);
-    border: 1px solid hsla(var(--primary-hue), 50%, 50%, 0.2);
-    border-left: 3px solid var(--primary);
-}
-
 .message-assistant .message-content {
     background: linear-gradient(135deg, hsla(152, 50%, 50%, 0.08) 0%, hsla(152, 50%, 50%, 0.03) 100%);
     border: 1px solid hsla(152, 50%, 50%, 0.15);
     border-left: 3px solid var(--success);
+    border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
 }
 
 /* Markdown content styles in assistant messages */
@@ -464,14 +513,6 @@ body {
     font-weight: 500;
 }
 
-/* System messages */
-.message-system .message-content {
-    background: linear-gradient(135deg, hsla(38, 70%, 50%, 0.1) 0%, hsla(38, 70%, 50%, 0.04) 100%);
-    border: 1px solid hsla(38, 70%, 50%, 0.2);
-    border-left: 3px solid var(--warning);
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-}
 
 /* === Chat Input === */
 .chat-input-container {
@@ -805,4 +846,141 @@ body {
     .btn-send .send-icon {
         display: none;
     }
+}
+
+/* === Inline Message Charts === */
+.message-chart-card {
+    margin-top: 1.25rem;
+    background: var(--bg);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.message-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    background: linear-gradient(135deg, var(--surface-hover) 0%, var(--surface-raised) 100%);
+    border-bottom: 1px solid var(--border);
+    gap: 0.75rem;
+}
+
+.chart-header-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    min-width: 0;
+}
+
+.chart-title-text {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: 0.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.2rem;
+    flex-shrink: 0;
+}
+
+.chart-tab-btn {
+    padding: 0.22rem 0.7rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: var(--transition);
+    letter-spacing: 0.01em;
+}
+
+.chart-tab-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 1px 4px var(--primary-glow);
+}
+
+.chart-tab-btn:hover:not(.active) {
+    color: var(--text);
+    background: var(--surface-hover);
+}
+
+.message-chart-body {
+    padding: 1rem;
+}
+
+.message-chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 260px;
+    margin-bottom: 0.5rem;
+}
+
+.message-chart-canvas-wrap canvas {
+    max-height: 260px;
+}
+
+.chart-tab-panel {
+    animation: fadeInUp 0.2s ease-out;
+}
+
+.message-chart-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    justify-content: center;
+}
+
+.chart-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border-light);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Compact data table inside message chart */
+.message-chart-card .data-table {
+    font-size: 0.82rem;
+}
+
+.message-chart-card .data-table thead th {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+}
+
+.message-chart-card .data-table tbody td {
+    padding: 0.4rem 0.6rem;
+}
+
+/* System message — no avatar */
+.message-system .message-content {
+    background: linear-gradient(135deg, hsla(38, 70%, 50%, 0.1) 0%, hsla(38, 70%, 50%, 0.04) 100%);
+    border: 1px solid hsla(38, 70%, 50%, 0.2);
+    border-left: 3px solid var(--warning);
+    font-size: 0.88rem;
+    color: var(--text-secondary);
 }

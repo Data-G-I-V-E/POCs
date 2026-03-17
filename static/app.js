@@ -5,8 +5,8 @@
 // === CONFIG ===
 const API_BASE = window.location.origin;
 let currentSessionId = localStorage.getItem('export_session_id') || 'default';
-let tradeChart = null;
-let monthlyChart = null;
+let chartCounter = 0;
+const chartInstances = {};
 
 // === DOM ELEMENTS ===
 const chatMessages = document.getElementById('chat-messages');
@@ -15,10 +15,6 @@ const sendBtn = document.getElementById('send-btn');
 const newSessionBtn = document.getElementById('new-session-btn');
 const clearSessionBtn = document.getElementById('clear-session-btn');
 const sessionDisplay = document.getElementById('session-display');
-const chartContainer = document.getElementById('chart-container');
-const chartInfo = document.getElementById('chart-info');
-const chartDetails = document.getElementById('chart-details');
-const closeVizBtn = document.getElementById('close-viz-btn');
 
 // === INITIALIZATION ===
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,13 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     newSessionBtn.addEventListener('click', handleNewSession);
     clearSessionBtn.addEventListener('click', handleClearSession);
-
-    if (closeVizBtn) {
-        closeVizBtn.addEventListener('click', () => {
-            const vizSection = document.getElementById('viz-section');
-            if (vizSection) vizSection.style.display = 'none';
-        });
-    }
 
     // Setup example query clicks
     document.querySelectorAll('.example-queries li').forEach(li => {
@@ -116,11 +105,14 @@ function addRestoredAssistantMessage(content) {
     const formattedAnswer = formatMessageContent(content);
 
     messageDiv.innerHTML = `
-        <div class="message-header">🤖 Assistant</div>
-        <div class="message-content">
-            ${formattedAnswer}
-            <div class="message-meta">
-                <span class="meta-tag">📂 Restored</span>
+        <div class="assistant-avatar">🤖</div>
+        <div class="message-body">
+            <div class="message-header">Assistant</div>
+            <div class="message-content">
+                ${formattedAnswer}
+                <div class="message-meta">
+                    <span class="meta-tag">📂 Restored</span>
+                </div>
             </div>
         </div>
     `;
@@ -222,13 +214,11 @@ async function handleSendMessage() {
     try {
         const response = await sendQuery(query);
 
-        // Add assistant response
-        addAssistantMessage(response);
+        // Add assistant response and get the message element back
+        const msgDiv = addAssistantMessage(response);
 
-        // Check if we should show visualization
-        if (shouldShowVisualization(query, response)) {
-            await updateVisualization(response);
-        }
+        // Embed chart directly inside the message bubble
+        await embedChartInMessage(msgDiv, response);
 
     } catch (error) {
         console.error('Error sending message:', error);
@@ -242,7 +232,7 @@ function addUserMessage(content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message message-user';
     messageDiv.innerHTML = `
-        <div class="message-header">👤 You</div>
+        <div class="message-header">You</div>
         <div class="message-content">${escapeHtml(content)}</div>
     `;
     chatMessages.appendChild(messageDiv);
@@ -286,18 +276,21 @@ function addAssistantMessage(response) {
     metaHtml += '</div>';
 
     messageDiv.innerHTML = `
-        <div class="message-header">
-            🤖 Assistant
-        </div>
-        <div class="message-content">
-            ${formattedAnswer}
-            ${sourcesHtml}
-            ${metaHtml}
+        <div class="assistant-avatar">🤖</div>
+        <div class="message-body">
+            <div class="message-header">Assistant</div>
+            <div class="message-content">
+                ${formattedAnswer}
+                ${sourcesHtml}
+                ${metaHtml}
+            </div>
         </div>
     `;
 
     chatMessages.appendChild(messageDiv);
     scrollToBottom();
+
+    return messageDiv;
 }
 
 function addSystemMessage(content) {
@@ -372,10 +365,6 @@ function handleNewSession() {
     // Reset chat
     chatMessages.innerHTML = '';
 
-    // Hide viz
-    const vizSection = document.getElementById('viz-section');
-    if (vizSection) vizSection.style.display = 'none';
-
     addSystemMessage(`✨ Started new session: ${sessionId}`);
 }
 
@@ -385,9 +374,6 @@ async function handleClearSession() {
     try {
         await clearSession(currentSessionId);
         chatMessages.innerHTML = '';
-
-        const vizSection = document.getElementById('viz-section');
-        if (vizSection) vizSection.style.display = 'none';
 
         // Reset to default session
         currentSessionId = 'default';
@@ -401,41 +387,10 @@ async function handleClearSession() {
     }
 }
 
-// === VISUALIZATION ===
+// === INLINE CHART EMBEDDING ===
 
-function shouldShowVisualization(query, response) {
-    const hasSqlResults = response.query_type === 'sql' ||
-        response.query_type === 'combined' ||
-        response.sources?.some(s => s.type === 'sql');
-    const hasHsCode = response.hs_code != null;
-
-    // Keywords suggesting trade data visualization
-    const vizKeywords = [
-        'statistic', 'trade data', 'export value', 'export data',
-        'chart', 'graph', 'trend', 'data', 'monthly', 'quarterly',
-        'export', 'import', 'trade', 'restriction', 'can i export'
-    ];
-    const queryLower = query.toLowerCase();
-    const queryWantsViz = vizKeywords.some(kw => queryLower.includes(kw));
-
-    // Always show viz for combined/sql routes with an HS code
-    if (hasHsCode && hasSqlResults) return true;
-
-    return (hasSqlResults || hasHsCode) && (hasSqlResults || queryWantsViz);
-}
-
-async function updateVisualization(response) {
+async function embedChartInMessage(msgDiv, response) {
     try {
-        const vizSection = document.getElementById('viz-section');
-        const placeholder = document.getElementById('chart-placeholder');
-        const canvas = document.getElementById('trade-chart');
-
-        // Show section, reset state
-        if (vizSection) vizSection.style.display = 'block';
-        if (placeholder) placeholder.style.display = 'none';
-        if (canvas) canvas.style.display = 'block';
-        chartInfo.style.display = 'block';
-
         // HS codes that actually have trade data in the database (6-digit)
         const KNOWN_TRADE_CODES = new Set([
             '070310','070700','070960',
@@ -473,11 +428,9 @@ async function updateVisualization(response) {
         }
 
         // --- Collect chapter candidates — ONLY for codes that exist in the trade DB ---
-        // This prevents showing chapter-level data for an HS code not in our dataset.
         const chapterCandidates = [];
 
         for (const code of allHsCandidates) {
-            // Only derive a chapter candidate if this code (or its 6-digit prefix) has data
             const prefix6 = code.substring(0, 6);
             if (KNOWN_TRADE_CODES.has(prefix6)) {
                 const ch = prefix6.substring(0, 2);
@@ -485,47 +438,120 @@ async function updateVisualization(response) {
             }
         }
 
+        // Nothing to chart — exit silently
         if (hsCandidates.length === 0 && chapterCandidates.length === 0) {
             console.log('No HS code or chapter found for visualization');
-            if (vizSection) vizSection.style.display = 'none';
             return;
         }
 
-        let chartRendered = false;
+        // --- Insert chart card with loading spinner into the message bubble ---
+        const chartId = `chart-${++chartCounter}`;
+        const chartTitleId = `${chartId}-title`;
+        const messageContent = msgDiv.querySelector('.message-content');
 
-        // Helper: render monthly chart + details table
-        function renderMonthly(monthlyData, label) {
-            chartRendered = true;
-            chartDetails.innerHTML = `
-                <p><strong>HS Code / Chapter:</strong> ${label}</p>
-                <p style="margin-bottom:0.5rem;"><strong>Monthly Export Trend (2024):</strong></p>
-                ${createMonthlyDataTable(monthlyData, label)}
-                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                    Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
-                </p>
-            `;
-            // Delay chart creation so the browser can lay out the container first
-            setTimeout(() => createLineChart(monthlyData, label), 50);
+        const chartCard = document.createElement('div');
+        chartCard.className = 'message-chart-card';
+        chartCard.innerHTML = `
+            <div class="message-chart-header">
+                <div class="chart-header-label">
+                    <span>📊</span>
+                    <span class="chart-title-text" id="${chartTitleId}">Loading trade data…</span>
+                </div>
+                <div class="chart-tabs">
+                    <button class="chart-tab-btn active" data-tab="chart">Chart</button>
+                    <button class="chart-tab-btn" data-tab="table">Table</button>
+                </div>
+            </div>
+            <div class="message-chart-body">
+                <div class="message-chart-loading" id="${chartId}-loading">
+                    <div class="chart-spinner"></div>
+                    <span>Loading chart data…</span>
+                </div>
+                <div id="${chartId}-content" style="display:none;">
+                    <div class="chart-tab-panel" id="${chartId}-panel-chart">
+                        <div class="message-chart-canvas-wrap">
+                            <canvas id="${chartId}"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-tab-panel" id="${chartId}-panel-table" style="display:none;">
+                        <div id="${chartId}-table"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Tab switching
+        chartCard.querySelectorAll('.chart-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                chartCard.querySelectorAll('.chart-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const tab = btn.dataset.tab;
+                document.getElementById(`${chartId}-panel-chart`).style.display = tab === 'chart' ? 'block' : 'none';
+                document.getElementById(`${chartId}-panel-table`).style.display = tab === 'table' ? 'block' : 'none';
+            });
+        });
+
+        // Insert before the sources section if present, otherwise append
+        const sourcesEl = messageContent.querySelector('.message-sources');
+        if (sourcesEl) {
+            messageContent.insertBefore(chartCard, sourcesEl);
+        } else {
+            messageContent.appendChild(chartCard);
         }
 
-        // Helper: render annual bar chart + details table
+        scrollToBottom();
+
+        const loadingEl = document.getElementById(`${chartId}-loading`);
+        const contentEl = document.getElementById(`${chartId}-content`);
+        const tableEl = document.getElementById(`${chartId}-table`);
+
+        let chartRendered = false;
+
+        // Helper: render monthly line chart + table
+        function renderMonthly(monthlyData, label) {
+            chartRendered = true;
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = `Monthly Exports — HS ${label}`;
+            if (tableEl) {
+                tableEl.innerHTML = `
+                    <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
+                        <strong>Monthly Export Trend (2024)</strong> — ${label}
+                    </p>
+                    ${createMonthlyDataTable(monthlyData)}
+                    <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
+                        Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
+                    </p>
+                `;
+            }
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            setTimeout(() => createLineChart(monthlyData, label, chartId), 50);
+        }
+
+        // Helper: render annual bar chart + table
         function renderAnnual(data, label) {
             chartRendered = true;
-            chartDetails.innerHTML = `
-                <p><strong>HS Code / Chapter:</strong> ${label}</p>
-                <p style="margin-bottom:0.5rem;"><strong>Export Data by Country (Annual):</strong></p>
-                ${createDataTable(data.data, label)}
-                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                    Last Updated: ${new Date(data.timestamp).toLocaleString()}
-                </p>
-            `;
-            setTimeout(() => createBarChart(data.data, label), 50);
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = `Annual Exports — HS ${label}`;
+            if (tableEl) {
+                tableEl.innerHTML = `
+                    <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
+                        <strong>Export Data by Country (Annual)</strong> — ${label}
+                    </p>
+                    ${createDataTable(data.data)}
+                    <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
+                        Last Updated: ${new Date(data.timestamp).toLocaleString()}
+                    </p>
+                `;
+            }
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            setTimeout(() => createBarChart(data.data, label, chartId), 50);
         }
 
         // --- Pass 1: Try HS codes — only those known to have data ---
         for (const hsCode of allHsCandidates) {
             if (chartRendered) break;
-            // Skip codes whose 6-digit prefix is not in our trade dataset
             if (!KNOWN_TRADE_CODES.has(hsCode.substring(0, 6))) {
                 console.log(`HS ${hsCode}: not in trade dataset, skipping`);
                 continue;
@@ -545,7 +571,7 @@ async function updateVisualization(response) {
             } catch (e) { console.log(`Annual HS ${hsCode}: ${e.message}`); }
         }
 
-        // --- Pass 2: Try chapter-level queries (uses proper 'chapter' param) ---
+        // --- Pass 2: Try chapter-level queries ---
         if (!chartRendered) {
             for (const ch of chapterCandidates) {
                 if (chartRendered) break;
@@ -565,36 +591,19 @@ async function updateVisualization(response) {
             }
         }
 
-        // --- No data found ---
+        // --- No data found: remove the chart card entirely ---
         if (!chartRendered) {
-            if (canvas) canvas.style.display = 'none';
-            if (placeholder) {
-                placeholder.style.display = 'flex';
-                const tried = [
-                    ...hsCandidates.map(c => `HS ${c}`),
-                    ...chapterCandidates.map(c => `Ch.${c}`)
-                ];
-                placeholder.innerHTML = `
-                    <p style="font-size:1.1rem;">📊 No chart data available</p>
-                    <p class="chart-hint">
-                        Tried: ${tried.slice(0, 6).join(', ')}${tried.length > 6 ? '...' : ''}<br>
-                        Charts are available for the 31 focus HS codes tracked in the system.<br>
-                        Detailed statistics are shown in the answer above.
-                    </p>
-                `;
-            }
-            chartDetails.innerHTML = '';
-            chartInfo.style.display = 'none';
+            chartCard.remove();
         }
 
-        vizSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        scrollToBottom();
 
     } catch (error) {
-        console.error('Error updating visualization:', error);
+        console.error('Error embedding chart in message:', error);
     }
 }
 
-function createDataTable(data, hsCode) {
+function createDataTable(data) {
     if (!data || data.length === 0) return '<p>No data available</p>';
 
     const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -623,7 +632,7 @@ function createDataTable(data, hsCode) {
     return html;
 }
 
-function createMonthlyDataTable(monthlyData, hsCode) {
+function createMonthlyDataTable(monthlyData) {
     const countries = Object.keys(monthlyData.monthly_data);
     const months = monthlyData.months;
     if (countries.length === 0 || months.length === 0) return '<p>No monthly data available</p>';
@@ -663,13 +672,13 @@ function createMonthlyDataTable(monthlyData, hsCode) {
     return html;
 }
 
-function createBarChart(data, hsCode) {
-    const canvas = document.getElementById('trade-chart');
+function createBarChart(data, label, canvasId) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    if (tradeChart) tradeChart.destroy();
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
     // Dark theme chart colors
     const chartColors = [
@@ -680,7 +689,7 @@ function createBarChart(data, hsCode) {
         { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
     ];
 
-    tradeChart = new Chart(ctx, {
+    chartInstances[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: data.map(d => d.country),
@@ -700,7 +709,7 @@ function createBarChart(data, hsCode) {
             plugins: {
                 title: {
                     display: true,
-                    text: `Export Statistics — HS ${hsCode}`,
+                    text: `Export Statistics — HS ${label}`,
                     color: '#e8eaed',
                     font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
                     padding: { bottom: 16 }
@@ -768,14 +777,13 @@ function createBarChart(data, hsCode) {
     });
 }
 
-function createLineChart(monthlyData, hsCode) {
-    const canvas = document.getElementById('trade-chart');
+function createLineChart(monthlyData, label, canvasId) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    if (tradeChart) tradeChart.destroy();
-    if (monthlyChart) monthlyChart.destroy();
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
     const chartColors = [
         { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)' },
@@ -809,7 +817,7 @@ function createLineChart(monthlyData, hsCode) {
         };
     });
 
-    monthlyChart = new Chart(ctx, {
+    chartInstances[canvasId] = new Chart(ctx, {
         type: 'line',
         data: { labels: months, datasets },
         options: {
@@ -822,7 +830,7 @@ function createLineChart(monthlyData, hsCode) {
             plugins: {
                 title: {
                     display: true,
-                    text: `Monthly Export Trend — HS ${hsCode} (2024)`,
+                    text: `Monthly Export Trend — HS ${label} (2024)`,
                     color: '#e8eaed',
                     font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
                     padding: { bottom: 16 }
@@ -890,9 +898,6 @@ function createLineChart(monthlyData, hsCode) {
             }
         }
     });
-
-    // Keep reference so we can destroy it later
-    tradeChart = monthlyChart;
 }
 
 // === UTILITIES ===
