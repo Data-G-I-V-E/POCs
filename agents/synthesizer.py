@@ -108,21 +108,26 @@ class AnswerSynthesizer:
         
         vector_summary = "NOT CHECKED — Vector agent was not invoked for this query."
         if state.get("vector_results"):
-            docs = state["vector_results"][:4]
+            docs = state["vector_results"][:6]
             parts = []
             for d in docs:
                 meta = d.get('metadata', {})
                 doc_type = d.get('type', 'unknown')
-                
+
                 if doc_type == 'dgft_ftp':
                     chapter = meta.get('chapter', f"Ch-{meta.get('chapter_num', '?')}")
                     section = meta.get('section_full', meta.get('section_id', 'N/A'))
                     label = f"DGFT FTP {chapter} — {section}"
+                    # Use full text for policy sections so the LLM doesn't hallucinate
+                    excerpt_limit = 1500
                 else:
                     label = f"Document: {meta.get('filename', meta.get('agreement', 'N/A'))}"
-                
-                parts.append(f"{label}\nRelevance: {d['score']:.1%}\nExcerpt: {d['text'][:300]}...")
-            
+                    excerpt_limit = 300
+
+                text = d['text']
+                excerpt = text if len(text) <= excerpt_limit else text[:excerpt_limit] + "..."
+                parts.append(f"{label}\nRelevance: {d['score']:.1%}\nContent:\n{excerpt}")
+
             vector_summary = "\n\n".join(parts)
         
         # Build HS lookup summary
