@@ -85,8 +85,12 @@ class QueryRouter:
         hs_code = hs_match.group(1) if hs_match else None
         
         # If no HS code in current query, scan conversation history for the most
-        # recently mentioned HS code (e.g. follow-up like "show its trade data")
-        if not hs_code:
+        # recently mentioned HS code — but ONLY for follow-up queries about the
+        # same product, NOT when the user is asking about a new product.
+        # Skip history scan for hs_lookup (new classification request) and when
+        # the query contains a new product name to look up.
+        _is_new_product_query = query_type == "hs_lookup" or bool(product_name)
+        if not hs_code and not _is_new_product_query:
             for msg in reversed(state.get("messages", [])[:-1]):
                 content = msg.content if hasattr(msg, "content") else str(msg)
                 m = re.search(r'\b(\d{6,8})\b', content)

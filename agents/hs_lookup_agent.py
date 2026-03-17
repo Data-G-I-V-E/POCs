@@ -288,7 +288,11 @@ class HSLookupAgent:
 
     def search_by_code(self, hs_code: str, limit: int = 20) -> List[Dict]:
         """Search by exact or prefix HS code."""
-        conn = self._get_connection()
+        try:
+            conn = self._get_connection()
+        except Exception as e:
+            print(f"⚠️  HSLookupAgent: DB connection failed in search_by_code: {e}")
+            return []
         cur = conn.cursor()
         try:
             results = self._s_exact(cur, hs_code)
@@ -303,7 +307,11 @@ class HSLookupAgent:
         Cascading description search across hs_master_8_digit AND itc_hs_products.
         Returns merged, ranked list.
         """
-        conn = self._get_connection()
+        try:
+            conn = self._get_connection()
+        except Exception as e:
+            print(f"⚠️  HSLookupAgent: DB connection failed in search_by_description: {e}")
+            return []
         cur = conn.cursor()
         try:
             results: List[Dict] = []
@@ -371,6 +379,32 @@ class HSLookupAgent:
         hs_code      = state.get("hs_code")
         product_name = state.get("product_name") or ""
 
+        # Guard: if DB is completely unreachable, return a graceful no-match
+        try:
+            _test_conn = self._get_connection()
+            _test_conn.close()
+        except Exception as e:
+            print(f"⚠️  HSLookupAgent: DB unreachable, returning no-match: {e}")
+            state["hs_lookup_results"] = {
+                "results": [],
+                "count": 0,
+                "search_term": product_name or hs_code or user_query,
+                "needs_clarification": True,
+                "clarification_type": "no_match",
+                "clarification_message": (
+                    "The HS code database is temporarily unavailable. "
+                    "Please try again in a moment."
+                ),
+                "success": False,
+                "error": str(e),
+            }
+            state.setdefault("sources", []).append({
+                "type": "hs_master_lookup",
+                "error": str(e),
+            })
+            state["next_agent"] = "synthesizer"
+            return state
+
         results: List[Dict] = []
         search_term = ""
 
@@ -385,14 +419,16 @@ class HSLookupAgent:
             results = _merge(results, self.search_by_description(product_name, limit=20))
 
         # ── Step 3: Trigram supplement on raw user_query ─────────────
-        conn = self._get_connection()
-        cur  = conn.cursor()
         try:
-            trgm = self._s_trgm(cur, user_query, 20)
-        finally:
-            cur.close(); conn.close()
-
-        results = _merge(results, trgm)
+            conn = self._get_connection()
+            cur  = conn.cursor()
+            try:
+                trgm = self._s_trgm(cur, user_query, 20)
+            finally:
+                cur.close(); conn.close()
+            results = _merge(results, trgm)
+        except Exception as e:
+            print(f"⚠️  HSLookupAgent: DB connection failed in execute (Step 3): {e}")
         if not search_term:
             search_term = user_query
 
