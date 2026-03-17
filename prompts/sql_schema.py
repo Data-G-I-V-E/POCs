@@ -37,16 +37,25 @@ Available Tables and Views:
    Columns: chapter_code, note_type, sl_no, note_text, notification_no
    Types: 'main_note', 'policy_condition', 'export_licensing'
 
-8. export_statistics - Annual export trade data
+8. export_statistics - Annual export trade data (last year, country-wise)
    Columns: hs_code, country_code, year_label, export_value_crore
+   ⚠ COVERAGE: Contains data for ONLY the same 16 HS codes as monthly_export_statistics.
+     There is NO chapter-level or aggregate data here. Do NOT use as a fallback for
+     unlisted HS codes — it will return 0 rows.
 
 9. monthly_export_statistics - Monthly export data for 2024
    Columns: hs_code, country_code, year, month (1-12), month_name (Jan-Dec),
             export_value_crore, prev_year_value_crore, monthly_growth_pct,
             ytd_value_crore, prev_ytd_value_crore, ytd_growth_pct,
             total_monthly_value_crore, total_ytd_value_crore
-   USE THIS TABLE for any question about monthly, seasonal, or trend data in 2024
-   Data: 16 HS codes × 3 countries × 12 months = 565 records
+   ⚠ COVERAGE: Contains data for ONLY these 16 HS codes (6-digit):
+       070310, 070700, 070960  (Chapter 7)
+       080310, 080410, 080450  (Chapter 8)
+       610910, 610342, 610442  (Chapter 61)
+       620342, 620462, 620520  (Chapter 62)
+       850440, 851310, 851762  (Chapter 85)
+       902610                  (Chapter 90)
+   For ANY other HS code, return a "no data" message — do NOT query this table.
 
 10. v_monthly_exports - Monthly exports with country names and HS descriptions (VIEW)
     Columns: hs_code, chapter (VARCHAR - use quotes e.g. chapter = '85'), hs_description, country_code, country_name,
@@ -55,6 +64,7 @@ Available Tables and Views:
              total_monthly_value_crore, total_ytd_value_crore
     Preferred view for monthly data queries - already has country names and HS descriptions
     IMPORTANT: chapter is TEXT derived from LEFT(hs_code,2), always compare as string: chapter = '85' NOT chapter = 85
+    ⚠ COVERAGE: Same 16 HS codes only — see monthly_export_statistics above.
 
 11. v_quarterly_exports - Quarterly aggregations (VIEW)
     Columns: hs_code, country_code, year, quarter (Q1-Q4), quarter_num,
@@ -97,8 +107,16 @@ Functions:
 
 Important:
 - Country codes: 'AUS' (Australia), 'UAE' (United Arab Emirates), 'GBR' (United Kingdom)
-- For annual data: year format is '2023-2024', '2024-2025' in export_statistics
-- For monthly data: use monthly_export_statistics or v_monthly_exports (year=2024, month=1-12)
+- TRADE DATA COVERAGE: Only these 16 HS codes (6-digit) have ANY trade data:
+    070310 070700 070960 | 080310 080410 080450 | 610910 610342 610442
+    620342 620462 620520 | 850440 851310 851762 | 902610
+  Both export_statistics AND monthly_export_statistics share this same limited set.
+  There is NO chapter-level aggregate data and NO data for any other HS code.
+- HS CODE PREFIX MATCHING: If the user provides an 8-digit code, truncate to 6 digits.
+  If LEFT(code, 6) is in the 16-code list → query using that 6-digit code.
+  If LEFT(code, 6) is NOT in the list → return a "no data available" SQL message.
+- For annual data: use export_statistics (year_label format: '2023-2024', '2024-2025')
+- For monthly/trend data: use monthly_export_statistics or v_monthly_exports (year=2024, month=1-12)
 - Export values are always in ₹ Crore
 - To get full policy details for an HS code with references, JOIN v_export_policy_unified or query itc_chapter_policies
 - For "what are prohibited items" queries, use: SELECT * FROM prohibited_items

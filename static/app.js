@@ -436,6 +436,16 @@ async function updateVisualization(response) {
         if (canvas) canvas.style.display = 'block';
         chartInfo.style.display = 'block';
 
+        // HS codes that actually have trade data in the database (6-digit)
+        const KNOWN_TRADE_CODES = new Set([
+            '070310','070700','070960',
+            '080310','080410','080450',
+            '610910','610342','610442',
+            '620342','620462','620520',
+            '850440','851310','851762',
+            '902610',
+        ]);
+
         // --- Collect HS code candidates (6-8 digit) ---
         const hsCandidates = [];
 
@@ -452,21 +462,25 @@ async function updateVisualization(response) {
             }
         }
 
-        // --- Collect chapter candidates (2-digit, e.g. "07", "08") ---
-        const chapterCandidates = [];
-
-        // Derive chapters from every HS code collected
+        // For each candidate, also include the 6-digit prefix so prefix-matching works
+        const allHsCandidates = [];
         for (const code of hsCandidates) {
-            if (code.length >= 2) {
-                const ch = code.substring(0, 2);
-                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+            if (!allHsCandidates.includes(code)) allHsCandidates.push(code);
+            if (code.length > 6) {
+                const prefix6 = code.substring(0, 6);
+                if (!allHsCandidates.includes(prefix6)) allHsCandidates.push(prefix6);
             }
         }
 
-        // Also extract chapters from "Chapter X" / "Ch. X" mentions in the answer
-        if (response.answer) {
-            for (const m of response.answer.matchAll(/\b(?:chapter|ch\.?)\s*(\d{1,2})\b/gi)) {
-                const ch = m[1].padStart(2, '0');
+        // --- Collect chapter candidates — ONLY for codes that exist in the trade DB ---
+        // This prevents showing chapter-level data for an HS code not in our dataset.
+        const chapterCandidates = [];
+
+        for (const code of allHsCandidates) {
+            // Only derive a chapter candidate if this code (or its 6-digit prefix) has data
+            const prefix6 = code.substring(0, 6);
+            if (KNOWN_TRADE_CODES.has(prefix6)) {
+                const ch = prefix6.substring(0, 2);
                 if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
             }
         }
@@ -508,9 +522,14 @@ async function updateVisualization(response) {
             setTimeout(() => createBarChart(data.data, label), 50);
         }
 
-        // --- Pass 1: Try exact HS codes ---
-        for (const hsCode of hsCandidates) {
+        // --- Pass 1: Try HS codes — only those known to have data ---
+        for (const hsCode of allHsCandidates) {
             if (chartRendered) break;
+            // Skip codes whose 6-digit prefix is not in our trade dataset
+            if (!KNOWN_TRADE_CODES.has(hsCode.substring(0, 6))) {
+                console.log(`HS ${hsCode}: not in trade dataset, skipping`);
+                continue;
+            }
             try {
                 const d = await getMonthlyTradeData(hsCode, null);
                 if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
