@@ -7,7 +7,7 @@
     <meta name="description" content="AI-powered multi-agent export advisory system for India trade data, HS codes, restrictions, and trade agreements.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Source+Serif+4:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/styles.css">
     <!-- Chart.js for visualizations -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
@@ -15,94 +15,106 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header" id="app-header">
-        <div class="header-inner">
-            <div class="header-left">
-                <h1>🌍 Export Advisory System</h1>
-                <p class="subtitle">AI-Powered Multi-Agent Trade Intelligence</p>
-            </div>
-            <div class="header-right">
-                <div class="session-info">
-                    <span id="session-display" class="session-badge">Session: default</span>
-                    <button id="new-session-btn" class="btn btn-glass" title="Start new session">
-                        <span>✨</span> New
-                    </button>
-                    <button id="clear-session-btn" class="btn btn-glass btn-glass-danger" title="Clear chat history">
-                        <span>🗑️</span> Clear
-                    </button>
+    <div class="app-shell">
+        <aside class="app-sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-mark">✶</span>
+                <div class="brand-meta">
+                    <h1>Astra Export AI</h1>
+                    <p>Trade intelligence workspace</p>
                 </div>
             </div>
-        </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Chat Section -->
-        <section class="chat-section" id="chat-section">
-            <div class="chat-container">
-                <div id="chat-messages" class="chat-messages">
-                    <div class="welcome-message" id="welcome-message">
-                        <div class="welcome-icon">🚀</div>
-                        <h3>Welcome to Export Advisory!</h3>
-                        <p class="welcome-sub">I'm your AI-powered trade intelligence assistant. I can help you with:</p>
-                        <div class="welcome-features">
-                            <div class="feature-card">
-                                <span class="feature-icon">📊</span>
-                                <span>Export statistics & trade data</span>
-                            </div>
-                            <div class="feature-card">
-                                <span class="feature-icon">✅</span>
-                                <span>Export eligibility checks</span>
-                            </div>
-                            <div class="feature-card">
-                                <span class="feature-icon">📋</span>
-                                <span>Trade agreements & tariffs</span>
-                            </div>
-                            <div class="feature-card">
-                                <span class="feature-icon">⚠️</span>
-                                <span>Restrictions & regulations</span>
+            <div class="sidebar-actions">
+                <button id="new-session-btn" class="btn btn-sidebar-primary" title="Start new session">
+                    <span class="btn-icon">+</span>
+                    <span>New chat</span>
+                </button>
+                <button class="btn btn-sidebar" type="button">Search chats</button>
+                <button class="btn btn-sidebar" type="button">Library</button>
+            </div>
+
+            <div class="sidebar-group">
+                <p class="sidebar-label">Favorites</p>
+                <ul class="sidebar-list">
+                    <li class="active">Analyzing export volatility</li>
+                    <li>Trade restrictions comparison</li>
+                    <li>Tariff and duty summary</li>
+                </ul>
+            </div>
+
+            <div class="sidebar-group">
+                <p class="sidebar-label">Recent chats</p>
+                <ul class="sidebar-list compact">
+                    <li>HS 850440 compliance check</li>
+                    <li>Chapter 07 trends to Australia</li>
+                    <li>UAE policy validation</li>
+                    <li>Monthly exports 2024-25</li>
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <span id="session-display" class="session-badge">Session: default</span>
+                <button id="clear-session-btn" class="btn btn-sidebar-danger" title="Clear chat history">Clear session</button>
+            </div>
+        </aside>
+
+        <main class="workspace">
+            <section class="workspace-panel">
+                <header class="panel-topbar">
+                    <div>
+                        <p class="panel-kicker">Conversation</p>
+                        <h2>Export Advisory Assistant</h2>
+                    </div>
+                    <p class="panel-meta">India exports • policy • agreements • restrictions</p>
+                </header>
+
+                <section class="chat-section" id="chat-section">
+                    <div class="chat-container">
+                        <div id="chat-messages" class="chat-messages">
+                            <div class="welcome-message" id="welcome-message">
+                                <h3>Analyze export scenarios with context-aware AI</h3>
+                                <p class="welcome-sub">Ask natural-language questions across HS codes, policy checks, trade agreements, and monthly export trends.</p>
+                                <p class="try-asking"><strong>Try one of these prompts:</strong></p>
+                                <ul class="example-queries">
+                                    <li data-query="What are the export statistics for chapter 07 to Australia?">What are the export statistics for chapter 07 to Australia?</li>
+                                    <li data-query="Can I export HS 070310 to UAE?">Can I export HS 070310 to UAE?</li>
+                                    <li data-query="Are there any restrictions on electronic cigarettes?">Are there any restrictions on electronic cigarettes?</li>
+                                    <li data-query="What are the prohibited export items?">What are the prohibited export items?</li>
+                                    <li data-query="Show me trade data for HS 610910">Show me trade data for HS 610910</li>
+                                </ul>
                             </div>
                         </div>
-                        <p class="try-asking"><strong>Try asking:</strong></p>
-                        <ul class="example-queries">
-                            <li data-query="What are the export statistics for chapter 07 to Australia?">📊 "What are the export statistics for chapter 07 to Australia?"</li>
-                            <li data-query="Can I export HS 070310 to UAE?">✅ "Can I export HS 070310 to UAE?"</li>
-                            <li data-query="Are there any restrictions on electronic cigarettes?">⚠️ "Are there any restrictions on electronic cigarettes?"</li>
-                            <li data-query="What are the prohibited export items?">❌ "What are the prohibited export items?"</li>
-                            <li data-query="Show me trade data for HS 610910">📈 "Show me trade data for HS 610910"</li>
-                        </ul>
-                    </div>
-                </div>
 
-                <div class="chat-input-container">
-                    <div class="input-wrapper">
-                        <textarea
-                            id="user-input"
-                            class="chat-input"
-                            placeholder="Ask about exports, trade data, policies, or regulations..."
-                            rows="1"
-                        ></textarea>
-                        <button id="send-btn" class="btn btn-send" aria-label="Send message">
-                            <span class="send-text">Send</span>
-                            <span class="send-icon">➤</span>
-                            <span class="loading-spinner" style="display: none;">
-                                <span class="spinner-dot"></span>
-                                <span class="spinner-dot"></span>
-                                <span class="spinner-dot"></span>
-                            </span>
-                        </button>
+                        <div class="chat-input-container">
+                            <div class="input-wrapper">
+                                <textarea
+                                    id="user-input"
+                                    class="chat-input"
+                                    placeholder="Ask a follow-up question"
+                                    rows="1"
+                                ></textarea>
+                                <button id="send-btn" class="btn btn-send" aria-label="Send message">
+                                    <span class="send-text">Send</span>
+                                    <span class="send-icon">↑</span>
+                                    <span class="loading-spinner" style="display: none;">
+                                        <span class="spinner-dot"></span>
+                                        <span class="spinner-dot"></span>
+                                        <span class="spinner-dot"></span>
+                                    </span>
+                                </button>
+                            </div>
+                            <p class="input-hint">Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</p>
+                        </div>
                     </div>
-                    <p class="input-hint">Press <kbd>Enter</kbd> to send, <kbd>Shift+Enter</kbd> for new line</p>
-                </div>
-            </div>
-        </section>
-    </main>
+                </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <p>Powered by <strong>LangGraph Multi-Agent System</strong> &bull; Data: ITC HS, DGFT, Trade Agreements &bull; India Export Intelligence</p>
-    </footer>
+                <footer class="footer">
+                    <p>Built with <strong>LangGraph multi-agent orchestration</strong> &bull; Sources: ITC HS, DGFT, Trade Agreements</p>
+                </footer>
+            </section>
+        </main>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

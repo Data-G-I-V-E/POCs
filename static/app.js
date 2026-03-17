@@ -91,7 +91,7 @@ async function restoreSessionHistory() {
             }
         }
 
-        addSystemMessage(`📝 Restored ${data.message_count} messages from previous session`);
+        addSystemMessage(`Restored ${data.message_count} messages from previous session`);
         scrollToBottom();
     } catch (error) {
         console.log('No previous session to restore:', error.message);
@@ -105,13 +105,13 @@ function addRestoredAssistantMessage(content) {
     const formattedAnswer = formatMessageContent(content);
 
     messageDiv.innerHTML = `
-        <div class="assistant-avatar">🤖</div>
+        <div class="assistant-avatar">EA</div>
         <div class="message-body">
             <div class="message-header">Assistant</div>
             <div class="message-content">
                 ${formattedAnswer}
                 <div class="message-meta">
-                    <span class="meta-tag">📂 Restored</span>
+                    <span class="meta-tag">Session Restore</span>
                 </div>
             </div>
         </div>
@@ -128,11 +128,11 @@ async function checkHealth() {
         const data = await response.json();
         console.log('Server health:', data);
         if (data.status !== 'healthy') {
-            addSystemMessage('⚠️ Server is not fully initialized. Some features may not work.');
+            addSystemMessage('Server is not fully initialized. Some features may be unavailable.');
         }
     } catch (error) {
         console.error('Health check failed:', error);
-        addSystemMessage('❌ Cannot connect to server. Please check if the backend is running.');
+        addSystemMessage('Cannot connect to server. Please check if the backend is running.');
     }
 }
 
@@ -218,11 +218,11 @@ async function handleSendMessage() {
         const msgDiv = addAssistantMessage(response);
 
         // Embed chart directly inside the message bubble
-        await embedChartInMessage(msgDiv, response);
+        await embedChartInMessage(msgDiv, response, query);
 
     } catch (error) {
         console.error('Error sending message:', error);
-        addSystemMessage(`❌ Error: ${error.message}`);
+        addSystemMessage(`Error: ${error.message}`);
     } finally {
         setLoading(false);
     }
@@ -251,7 +251,7 @@ function addAssistantMessage(response) {
     if (response.sources && response.sources.length > 0) {
         sourcesHtml = `
             <div class="message-sources">
-                <h4>📚 Sources</h4>
+                <h4>Sources</h4>
                 ${response.sources.map(source => `
                     <div class="source-item">
                         <strong>${(source.type || 'info').toUpperCase()}</strong>: ${formatSource(source)}
@@ -270,13 +270,13 @@ function addAssistantMessage(response) {
         metaHtml += `<span class="meta-tag">HS: ${response.hs_code}</span>`;
     }
     if (response.country) {
-        metaHtml += `<span class="meta-tag">🌍 ${response.country.toUpperCase()}</span>`;
+        metaHtml += `<span class="meta-tag">Country: ${response.country.toUpperCase()}</span>`;
     }
     metaHtml += `<span class="meta-tag">${new Date(response.timestamp).toLocaleTimeString()}</span>`;
     metaHtml += '</div>';
 
     messageDiv.innerHTML = `
-        <div class="assistant-avatar">🤖</div>
+        <div class="assistant-avatar">EA</div>
         <div class="message-body">
             <div class="message-header">Assistant</div>
             <div class="message-content">
@@ -305,15 +305,15 @@ function addSystemMessage(content) {
 
 function getQueryTypeLabel(type) {
     const labels = {
-        'sql': '📊 Data Query',
-        'policy': '📋 Policy Check',
-        'vector': '🔍 Document Search',
-        'general': '💬 General',
-        'combined': '🔗 Multi-Agent',
-        'agreements': '📜 Agreements',
-        'hs_lookup': '🔎 HS Lookup'
+        'sql': 'Data Query',
+        'policy': 'Policy Check',
+        'vector': 'Document Search',
+        'general': 'General',
+        'combined': 'Multi-Agent',
+        'agreements': 'Agreements',
+        'hs_lookup': 'HS Lookup'
     };
-    return labels[type] || `📌 ${type}`;
+    return labels[type] || `Type: ${String(type).replace(/_/g, ' ')}`;
 }
 
 function formatMessageContent(content) {
@@ -365,7 +365,7 @@ function handleNewSession() {
     // Reset chat
     chatMessages.innerHTML = '';
 
-    addSystemMessage(`✨ Started new session: ${sessionId}`);
+    addSystemMessage(`Started new session: ${sessionId}`);
 }
 
 async function handleClearSession() {
@@ -380,16 +380,16 @@ async function handleClearSession() {
         localStorage.setItem('export_session_id', 'default');
         sessionDisplay.textContent = 'Session: default';
 
-        addSystemMessage('🧹 Session cleared successfully');
+        addSystemMessage('Session cleared successfully');
     } catch (error) {
         console.error('Error clearing session:', error);
-        addSystemMessage(`❌ Error clearing session: ${error.message}`);
+        addSystemMessage(`Error clearing session: ${error.message}`);
     }
 }
 
 // === INLINE CHART EMBEDDING ===
 
-async function embedChartInMessage(msgDiv, response) {
+async function embedChartInMessage(msgDiv, response, queryText = '') {
     try {
         // HS codes that actually have trade data in the database (6-digit)
         const KNOWN_TRADE_CODES = new Set([
@@ -400,11 +400,22 @@ async function embedChartInMessage(msgDiv, response) {
             '850440','851310','851762',
             '902610',
         ]);
+        const KNOWN_CHAPTERS = new Set(Array.from(KNOWN_TRADE_CODES).map(code => code.substring(0, 2)));
 
         // --- Collect HS code candidates (6-8 digit) ---
         const hsCandidates = [];
 
         if (response.hs_code) hsCandidates.push(response.hs_code);
+
+        if (queryText) {
+            for (const m of queryText.matchAll(/\b(\d{6,8})\b/g)) {
+                const code = m[1];
+                if (!code.startsWith('202') && !code.startsWith('201') &&
+                    !code.startsWith('200') && !hsCandidates.includes(code)) {
+                    hsCandidates.push(code);
+                }
+            }
+        }
 
         if (response.answer) {
             // Match standalone 6-8 digit numbers (word boundary prevents partial matches)
@@ -429,12 +440,28 @@ async function embedChartInMessage(msgDiv, response) {
 
         // --- Collect chapter candidates — ONLY for codes that exist in the trade DB ---
         const chapterCandidates = [];
+        const addChapterCandidate = (chapterValue) => {
+            if (chapterValue === undefined || chapterValue === null) return;
+            const chapterText = String(chapterValue).trim();
+            const numeric = chapterText.replace(/\D/g, '');
+            if (!numeric) return;
+            const ch = numeric.padStart(2, '0').substring(0, 2);
+            if (KNOWN_CHAPTERS.has(ch) && !chapterCandidates.includes(ch)) {
+                chapterCandidates.push(ch);
+            }
+        };
+
+        if (response.chapter) addChapterCandidate(response.chapter);
+
+        const chapterContext = `${queryText || ''}\n${response.answer || ''}`;
+        for (const m of chapterContext.matchAll(/\b(?:chapter|ch)\s*[-:]?\s*0?(\d{1,2})\b/gi)) {
+            addChapterCandidate(m[1]);
+        }
 
         for (const code of allHsCandidates) {
             const prefix6 = code.substring(0, 6);
             if (KNOWN_TRADE_CODES.has(prefix6)) {
-                const ch = prefix6.substring(0, 2);
-                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+                addChapterCandidate(prefix6.substring(0, 2));
             }
         }
 
@@ -454,7 +481,7 @@ async function embedChartInMessage(msgDiv, response) {
         chartCard.innerHTML = `
             <div class="message-chart-header">
                 <div class="chart-header-label">
-                    <span>📊</span>
+                    <span>Data</span>
                     <span class="chart-title-text" id="${chartTitleId}">Loading trade data…</span>
                 </div>
                 <div class="chart-tabs">
