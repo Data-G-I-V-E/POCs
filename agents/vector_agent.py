@@ -172,9 +172,11 @@ class VectorAgent:
                     stores_used.append("dgft_ftp_rag_store")
                 if agreement_count > 0:
                     stores_used.append("agreements_chromadb")
+                store_label = ", ".join(stores_used) if stores_used else "vector"
                 
                 state["sources"].append({
                     "type": "vector_search",
+                    "store": store_label,
                     "stores": stores_used,
                     "dgft_ftp_results": dgft_count,
                     "agreement_results": agreement_count,

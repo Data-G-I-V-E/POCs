@@ -343,13 +343,27 @@ function formatSource(source) {
         const country = source.country ? source.country.toUpperCase() : 'ALL';
         return `HS: ${source.hs_code || 'N/A'} → ${country}`;
     } else if (source.type === 'vector_search') {
-        return `${source.store || 'vector'} (${source.num_results || '?'} results)`;
+        const stores = Array.isArray(source.stores) ? source.stores.filter(Boolean) : [];
+        const storeLabel = source.store || (stores.length > 0 ? stores.join(', ') : 'vector');
+
+        let resultCount = source.num_results;
+        if (resultCount === undefined || resultCount === null) {
+            const dgftCount = Number(source.dgft_ftp_results ?? 0);
+            const agreementCount = Number(source.agreement_results ?? 0);
+            if (Number.isFinite(dgftCount) && Number.isFinite(agreementCount)) {
+                resultCount = dgftCount + agreementCount;
+            }
+        }
+
+        const hasValidCount = resultCount !== undefined && resultCount !== null && !Number.isNaN(Number(resultCount));
+        return `${escapeHtml(String(storeLabel))} (${hasValidCount ? resultCount : '?'} results)`;
     } else if (source.type === 'hs_master_lookup') {
         const ambig = source.is_ambiguous ? ' (AMBIGUOUS)' : '';
         return `${source.matches_found || 0} matches for "${source.search_term || '?'}"${ambig}`;
     } else if (source.type === 'trade_agreements') {
         const agreements = source.agreements?.join(', ') || 'N/A';
-        return `${source.num_results || '?'} results from ${agreements}`;
+        const results = source.num_results ?? '?';
+        return `${results} results from ${agreements}`;
     }
     return escapeHtml(JSON.stringify(source));
 }
@@ -403,28 +417,35 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
         const KNOWN_CHAPTERS = new Set(Array.from(KNOWN_TRADE_CODES).map(code => code.substring(0, 2)));
 
         // --- Collect HS code candidates (6-8 digit) ---
+        // Priority:
+        // 1) explicit HS codes in THIS user query
+        // 2) response.hs_code from backend
+        // 3) strict fallback from answer text (only "HS xxxx" patterns)
+        // This prevents accidental charting from unrelated code lists in model output.
         const hsCandidates = [];
-
-        if (response.hs_code) hsCandidates.push(response.hs_code);
+        const addHsCandidate = (rawCode) => {
+            if (rawCode === undefined || rawCode === null) return;
+            const code = String(rawCode).trim();
+            if (!/^\d{6,8}$/.test(code)) return;
+            if (code.startsWith('202') || code.startsWith('201') || code.startsWith('200')) return;
+            if (!hsCandidates.includes(code)) hsCandidates.push(code);
+        };
 
         if (queryText) {
             for (const m of queryText.matchAll(/\b(\d{6,8})\b/g)) {
-                const code = m[1];
-                if (!code.startsWith('202') && !code.startsWith('201') &&
-                    !code.startsWith('200') && !hsCandidates.includes(code)) {
-                    hsCandidates.push(code);
-                }
+                addHsCandidate(m[1]);
             }
         }
 
-        if (response.answer) {
-            // Match standalone 6-8 digit numbers (word boundary prevents partial matches)
-            for (const m of response.answer.matchAll(/\b(\d{6,8})\b/g)) {
-                const code = m[1];
-                if (!code.startsWith('202') && !code.startsWith('201') &&
-                    !code.startsWith('200') && !hsCandidates.includes(code)) {
-                    hsCandidates.push(code);
-                }
+        const hasExplicitQueryHs = hsCandidates.length > 0;
+
+        if (!hasExplicitQueryHs && response.hs_code) {
+            addHsCandidate(response.hs_code);
+        }
+
+        if (!hasExplicitQueryHs && hsCandidates.length === 0 && response.answer) {
+            for (const m of response.answer.matchAll(/\bHS\s*[:#-]?\s*(\d{6,8})\b/gi)) {
+                addHsCandidate(m[1]);
             }
         }
 

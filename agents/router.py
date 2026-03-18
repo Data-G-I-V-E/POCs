@@ -7,6 +7,7 @@ Extracts HS code and country entities from the query.
 
 import re
 from typing import Optional
+import psycopg2
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -21,11 +22,163 @@ class QueryRouter:
     
     def __init__(self, llm):
         self.llm = llm
+        self._last_hs_matches = []
         self.routing_prompt = ChatPromptTemplate.from_messages([
             ("system", ROUTER_SYSTEM_PROMPT),
             MessagesPlaceholder(variable_name="messages"),
             ("human", ROUTER_HUMAN_TEMPLATE)
         ])
+
+    @staticmethod
+    def _normalize_hs_code(hs_code: Optional[str]) -> Optional[str]:
+        """Normalize HS code to digit-only format and restore missing leading zero when needed."""
+        if hs_code is None:
+            return None
+
+        digits = re.sub(r"\D", "", str(hs_code))
+        if not digits:
+            return None
+
+        # If chapter-leading zero is dropped (e.g., 1023900 for 01023900), restore it.
+        if len(digits) in (1, 3, 5, 7):
+            digits = digits.zfill(len(digits) + 1)
+
+        if len(digits) > 8:
+            digits = digits[:8]
+
+        return digits
+
+    def _search_policy_tables_by_description(self, query: str, limit: int = 20):
+        """
+        Search restricted/prohibited/STE tables by product description and return
+        normalized HS matches with scores.
+        """
+        conn = None
+        cursor = None
+        try:
+            conn = psycopg2.connect(**Config.DB_CONFIG)
+            cursor = conn.cursor()
+
+            # Primary: full-text search on policy descriptions
+            fts_query = """
+                SELECT hs_code, description, source, score
+                FROM (
+                    SELECT hs_code, description, 'restricted_items' AS source,
+                           ts_rank(to_tsvector('english', COALESCE(description, '')),
+                                   plainto_tsquery('english', %s)) AS score
+                    FROM restricted_items
+                    WHERE to_tsvector('english', COALESCE(description, '')) @@ plainto_tsquery('english', %s)
+
+                    UNION ALL
+
+                    SELECT hs_code, description, 'prohibited_items' AS source,
+                           ts_rank(to_tsvector('english', COALESCE(description, '')),
+                                   plainto_tsquery('english', %s)) AS score
+                    FROM prohibited_items
+                    WHERE to_tsvector('english', COALESCE(description, '')) @@ plainto_tsquery('english', %s)
+
+                    UNION ALL
+
+                    SELECT hs_code, description, 'ste_items' AS source,
+                           ts_rank(to_tsvector('english', COALESCE(description, '')),
+                                   plainto_tsquery('english', %s)) AS score
+                    FROM ste_items
+                    WHERE to_tsvector('english', COALESCE(description, '')) @@ plainto_tsquery('english', %s)
+                ) ranked
+                WHERE score > 0
+                ORDER BY score DESC, length(hs_code) DESC, hs_code
+                LIMIT %s
+            """
+
+            cursor.execute(
+                fts_query,
+                (query, query, query, query, query, query, limit),
+            )
+            rows = cursor.fetchall()
+
+            # Fallback: keyword ILIKE when FTS returns nothing
+            if not rows:
+                stop_words = {
+                    "and", "the", "for", "with", "from", "any", "all", "show", "tell",
+                    "check", "about", "export", "exports", "can", "i", "to", "on", "of",
+                    "what", "are", "is", "there", "item", "items", "policy", "rules",
+                    "restriction", "restrictions", "restricted", "prohibited", "ste"
+                }
+                keywords = [
+                    token for token in re.split(r"[\s\-,/;:()\[\]]+", query.lower())
+                    if len(token) >= 3 and token not in stop_words and not token.isdigit()
+                ]
+                keywords = sorted(set(keywords), key=len, reverse=True)[:3]
+
+                if keywords:
+                    like_conds = " OR ".join(["description ILIKE %s"] * len(keywords))
+                    like_params = [f"%{kw}%" for kw in keywords]
+
+                    ilike_query = f"""
+                        SELECT hs_code, description, source, score
+                        FROM (
+                            SELECT hs_code, description, 'restricted_items' AS source, 0.85 AS score
+                            FROM restricted_items
+                            WHERE {like_conds}
+
+                            UNION ALL
+
+                            SELECT hs_code, description, 'prohibited_items' AS source, 0.83 AS score
+                            FROM prohibited_items
+                            WHERE {like_conds}
+
+                            UNION ALL
+
+                            SELECT hs_code, description, 'ste_items' AS source, 0.80 AS score
+                            FROM ste_items
+                            WHERE {like_conds}
+                        ) ranked
+                        ORDER BY score DESC, length(hs_code) DESC, hs_code
+                        LIMIT %s
+                    """
+
+                    cursor.execute(
+                        ilike_query,
+                        tuple(like_params + like_params + like_params + [limit]),
+                    )
+                    rows = cursor.fetchall()
+
+            dedup = {}
+            for hs_code, description, source, score in rows:
+                normalized = self._normalize_hs_code(hs_code)
+                if not normalized:
+                    continue
+                chapter = int(normalized[:2]) if len(normalized) >= 2 else 0
+                code_level = 3 if len(normalized) >= 8 else 2 if len(normalized) >= 6 else 1
+
+                entry = {
+                    "hs_code": normalized,
+                    "chapter": chapter,
+                    "code_level": code_level,
+                    "parent_code": normalized[:-2] if len(normalized) > 2 else None,
+                    "description": description,
+                    "score": float(score),
+                    "source": source,
+                }
+
+                existing = dedup.get(normalized)
+                if existing is None or entry["score"] > existing["score"]:
+                    dedup[normalized] = entry
+
+            return sorted(
+                dedup.values(),
+                key=lambda r: (r.get("score", 0), r.get("code_level", 0)),
+                reverse=True
+            )[:limit]
+
+        except Exception as e:
+            print(f"Error searching policy tables for HS code: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
     
     def _find_hs_code_by_description(self, query: str) -> Optional[str]:
         """
@@ -35,19 +188,57 @@ class QueryRouter:
         Stores all matches in self._last_hs_matches for ambiguity handling.
         """
         self._last_hs_matches = []
+
+        hs_results = []
         try:
             from .hs_lookup_agent import HSLookupAgent
-            results = HSLookupAgent().search_by_description(query, limit=20)
-            if results:
-                self._last_hs_matches = results
-                return results[0]["hs_code"]
-            return None
+            hs_results = HSLookupAgent().search_by_description(query, limit=20)
         except Exception as e:
             print(f"Error searching for HS code: {e}")
-            return None
+
+        policy_results = self._search_policy_tables_by_description(query, limit=20)
+
+        merged = []
+        index = {}
+        # Prefer policy-table hits first for restriction/prohibition workflows.
+        for row in policy_results + hs_results:
+            normalized = self._normalize_hs_code(row.get("hs_code"))
+            if not normalized:
+                continue
+
+            entry = dict(row)
+            entry["hs_code"] = normalized
+            entry.setdefault("description", "")
+            if "chapter" not in entry:
+                entry["chapter"] = int(normalized[:2]) if len(normalized) >= 2 else 0
+            entry.setdefault("code_level", 3 if len(normalized) >= 8 else 2 if len(normalized) >= 6 else 1)
+            entry.setdefault("parent_code", normalized[:-2] if len(normalized) > 2 else None)
+            entry.setdefault("score", 0.5)
+
+            if normalized in index:
+                idx = index[normalized]
+                if entry.get("score", 0) > merged[idx].get("score", 0):
+                    merged[idx] = entry
+            else:
+                index[normalized] = len(merged)
+                merged.append(entry)
+
+        if merged:
+            merged = sorted(
+                merged,
+                key=lambda r: (r.get("score", 0), r.get("code_level", 0)),
+                reverse=True
+            )
+            self._last_hs_matches = merged
+            return merged[0]["hs_code"]
+
+        return None
     
     def route(self, state: AgentState) -> AgentState:
         """Route the query to appropriate agent"""
+        # Reset per-query lookup cache to avoid leaking stale HS matches across turns.
+        self._last_hs_matches = []
+
         response = self.routing_prompt | self.llm | StrOutputParser()
         result = response.invoke({
             "messages": state["messages"],
@@ -82,7 +273,7 @@ class QueryRouter:
         # Extract HS code and country
         query_lower = state["user_query"].lower()
         hs_match = re.search(r'\b(\d{6,8})\b', state["user_query"])
-        hs_code = hs_match.group(1) if hs_match else None
+        hs_code = self._normalize_hs_code(hs_match.group(1)) if hs_match else None
         
         # If no HS code in current query, scan conversation history for the most
         # recently mentioned HS code — but ONLY for follow-up queries about the
@@ -95,7 +286,7 @@ class QueryRouter:
                 content = msg.content if hasattr(msg, "content") else str(msg)
                 m = re.search(r'\b(\d{6,8})\b', content)
                 if m:
-                    hs_code = m.group(1)
+                    hs_code = self._normalize_hs_code(m.group(1))
                     break
         
         # If still no HS code found, use LLM-extracted product name to search DB

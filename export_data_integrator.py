@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Optional, Any
 import logging
+import re
 from pathlib import Path
 
 from config import Config
@@ -67,6 +68,49 @@ class ExportDataIntegrator:
                 logger.warning(f"⚠️ Agreements retriever not available: {e}")
         
         logger.info("✓ Export Data Integrator ready!\n")
+
+    @staticmethod
+    def _sanitize_hs_code(hs_code: str) -> str:
+        """Return digit-only HS code text."""
+        if hs_code is None:
+            return ""
+        return re.sub(r"\D", "", str(hs_code))
+
+    @classmethod
+    def _normalize_hs_code(cls, hs_code: str) -> str:
+        """
+        Normalize HS code to stable 2/4/6/8-digit representation where possible.
+        Handles dropped leading-zero cases (e.g., 1023900 -> 01023900).
+        """
+        digits = cls._sanitize_hs_code(hs_code)
+        if not digits:
+            return ""
+
+        if len(digits) in (1, 3, 5, 7):
+            digits = digits.zfill(len(digits) + 1)
+
+        if len(digits) > 8:
+            digits = digits[:8]
+
+        return digits
+
+    @classmethod
+    def _exact_hs_candidates(cls, hs_code: str) -> List[str]:
+        """Generate exact-match candidate HS codes (normalized first, then raw)."""
+        raw = cls._sanitize_hs_code(hs_code)
+        normalized = cls._normalize_hs_code(hs_code)
+
+        candidates: List[str] = []
+        for code in (normalized, raw):
+            if code and code not in candidates:
+                candidates.append(code)
+
+        if raw and len(raw) > 8:
+            raw8 = raw[:8]
+            if raw8 not in candidates:
+                candidates.append(raw8)
+
+        return candidates
     
     # ========== HS CODE QUERIES ==========
     
@@ -81,6 +125,10 @@ class ExportDataIntegrator:
             Dict with HS code info, export policy, restrictions, etc.
         """
         if not self.cursor:
+            return None
+
+        hs_code = self._normalize_hs_code(hs_code)
+        if not hs_code:
             return None
         
         result = {
@@ -126,14 +174,20 @@ class ExportDataIntegrator:
     
     def _get_hs_code_basic(self, hs_code: str) -> Optional[Dict]:
         """Get basic HS code info from hs_codes table, fallback to itc_hs_products"""
+        candidates = self._exact_hs_candidates(hs_code)
+        if not candidates:
+            return None
+
         # Try exact match in hs_codes first
         query = """
             SELECT hs_code, description, code_level, chapter_number, parent_code
             FROM hs_codes
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
+            LIMIT 1
         """
         try:
-            self.cursor.execute(query, (hs_code,))
+            self.cursor.execute(query, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 return dict(result)
@@ -145,10 +199,12 @@ class ExportDataIntegrator:
             SELECT hs_code, description, level AS code_level, 
                    chapter_code AS chapter_number, parent_hs_code AS parent_code
             FROM itc_hs_products
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
+            LIMIT 1
         """
         try:
-            self.cursor.execute(query2, (hs_code,))
+            self.cursor.execute(query2, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 return dict(result)
@@ -156,7 +212,8 @@ class ExportDataIntegrator:
             logger.debug(f"No ITC product found for {hs_code}: {e}")
         
         # Fallback: try prefix match (user gave 6-digit, DB has 8-digit)
-        if len(hs_code) <= 6:
+        prefix_code = next((code for code in candidates if len(code) <= 6), None)
+        if prefix_code:
             query3 = """
                 SELECT hs_code, description, level AS code_level,
                        chapter_code AS chapter_number, parent_hs_code AS parent_code
@@ -166,28 +223,33 @@ class ExportDataIntegrator:
                 LIMIT 1
             """
             try:
-                self.cursor.execute(query3, (hs_code + '%',))
+                self.cursor.execute(query3, (prefix_code + '%',))
                 result = self.cursor.fetchone()
                 if result:
                     return dict(result)
             except Exception as e:
-                logger.debug(f"No ITC product found for prefix {hs_code}: {e}")
+                logger.debug(f"No ITC product found for prefix {prefix_code}: {e}")
         
         return None
     
     def _get_itc_policy(self, hs_code: str) -> Optional[Dict]:
         """Get ITC export policy with policy references from unified view"""
+        candidates = self._exact_hs_candidates(hs_code)
+        if not candidates:
+            return None
+
         query = """
             SELECT hs_code, hs_description, itc_policy, 
                    itc_notification, itc_date,
                    policy_reference, policy_reference_text,
                    overall_status
             FROM v_export_policy_unified
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
             LIMIT 1
         """
         try:
-            self.cursor.execute(query, (hs_code,))
+            self.cursor.execute(query, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 policy_dict = dict(result)
@@ -206,14 +268,20 @@ class ExportDataIntegrator:
     
     def _check_prohibited(self, hs_code: str) -> Optional[Dict]:
         """Check if HS code is prohibited (exact match + prefix match)"""
+        candidates = self._exact_hs_candidates(hs_code)
+        if not candidates:
+            return None
+
         # Try exact match first
         query = """
             SELECT hs_code, description, export_policy, policy_condition
             FROM prohibited_items
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
+            LIMIT 1
         """
         try:
-            self.cursor.execute(query, (hs_code,))
+            self.cursor.execute(query, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 return dict(result)
@@ -221,7 +289,8 @@ class ExportDataIntegrator:
             logger.debug(f"Error checking prohibited for {hs_code}: {e}")
         
         # Prefix match: 6-digit query matches 8-digit prohibited entry
-        if len(hs_code) <= 6:
+        prefix_code = next((code for code in candidates if len(code) <= 6), None)
+        if prefix_code:
             query2 = """
                 SELECT hs_code, description, export_policy, policy_condition
                 FROM prohibited_items
@@ -229,25 +298,31 @@ class ExportDataIntegrator:
                 LIMIT 1
             """
             try:
-                self.cursor.execute(query2, (hs_code + '%',))
+                self.cursor.execute(query2, (prefix_code + '%',))
                 result = self.cursor.fetchone()
                 if result:
                     return dict(result)
             except Exception as e:
-                logger.debug(f"Error prefix-checking prohibited for {hs_code}: {e}")
+                logger.debug(f"Error prefix-checking prohibited for {prefix_code}: {e}")
         
         return None
     
     def _check_restricted(self, hs_code: str) -> Optional[Dict]:
         """Check if HS code is restricted (exact match + prefix match)"""
+        candidates = self._exact_hs_candidates(hs_code)
+        if not candidates:
+            return None
+
         # Try exact match first
         query = """
             SELECT hs_code, description, export_policy, policy_condition
             FROM restricted_items
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
+            LIMIT 1
         """
         try:
-            self.cursor.execute(query, (hs_code,))
+            self.cursor.execute(query, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 return dict(result)
@@ -255,7 +330,8 @@ class ExportDataIntegrator:
             logger.debug(f"Error checking restricted for {hs_code}: {e}")
         
         # Prefix match: 6-digit query matches 8-digit restricted entry
-        if len(hs_code) <= 6:
+        prefix_code = next((code for code in candidates if len(code) <= 6), None)
+        if prefix_code:
             query2 = """
                 SELECT hs_code, description, export_policy, policy_condition
                 FROM restricted_items
@@ -263,26 +339,32 @@ class ExportDataIntegrator:
                 LIMIT 1
             """
             try:
-                self.cursor.execute(query2, (hs_code + '%',))
+                self.cursor.execute(query2, (prefix_code + '%',))
                 result = self.cursor.fetchone()
                 if result:
                     return dict(result)
             except Exception as e:
-                logger.debug(f"Error prefix-checking restricted for {hs_code}: {e}")
+                logger.debug(f"Error prefix-checking restricted for {prefix_code}: {e}")
         
         return None
     
     def _check_ste(self, hs_code: str) -> Optional[Dict]:
         """Check if HS code requires STE (exact match + prefix match)"""
+        candidates = self._exact_hs_candidates(hs_code)
+        if not candidates:
+            return None
+
         # Try exact match first
         query = """
             SELECT hs_code, description, export_policy, 
                    policy_condition, authorized_entity
             FROM ste_items
-            WHERE hs_code = %s
+            WHERE hs_code = ANY(%s)
+            ORDER BY CASE WHEN hs_code = %s THEN 0 ELSE 1 END, length(hs_code) DESC
+            LIMIT 1
         """
         try:
-            self.cursor.execute(query, (hs_code,))
+            self.cursor.execute(query, (candidates, candidates[0]))
             result = self.cursor.fetchone()
             if result:
                 return dict(result)
@@ -290,7 +372,8 @@ class ExportDataIntegrator:
             logger.debug(f"Error checking STE for {hs_code}: {e}")
         
         # Prefix match: 6-digit query matches 8-digit STE entry
-        if len(hs_code) <= 6:
+        prefix_code = next((code for code in candidates if len(code) <= 6), None)
+        if prefix_code:
             query2 = """
                 SELECT hs_code, description, export_policy, 
                        policy_condition, authorized_entity
@@ -299,12 +382,12 @@ class ExportDataIntegrator:
                 LIMIT 1
             """
             try:
-                self.cursor.execute(query2, (hs_code + '%',))
+                self.cursor.execute(query2, (prefix_code + '%',))
                 result = self.cursor.fetchone()
                 if result:
                     return dict(result)
             except Exception as e:
-                logger.debug(f"Error prefix-checking STE for {hs_code}: {e}")
+                logger.debug(f"Error prefix-checking STE for {prefix_code}: {e}")
         
         return None
     
@@ -455,8 +538,11 @@ class ExportDataIntegrator:
         Returns:
             Dict with export feasibility assessment
         """
+        normalized_hs_code = self._normalize_hs_code(hs_code)
+        effective_hs_code = normalized_hs_code or hs_code
+
         result = {
-            'hs_code': hs_code,
+            'hs_code': effective_hs_code,
             'country': country,
             'can_export': True,  # Assume yes until proven otherwise
             'issues': [],
@@ -465,16 +551,16 @@ class ExportDataIntegrator:
         }
         
         # 1. Get HS code info (never early-return — always check restrictions)
-        hs_info = self.get_hs_code_info(hs_code)
+        hs_info = self.get_hs_code_info(effective_hs_code)
         if not hs_info:
             # Still try to build partial info with what we have
             hs_info = {
-                'hs_code': hs_code,
+                'hs_code': effective_hs_code,
                 'is_prohibited': False,
                 'is_restricted': False,
                 'is_ste': False,
             }
-            result['warnings'].append(f"HS code {hs_code} has limited data in database")
+            result['warnings'].append(f"HS code {effective_hs_code} has limited data in database")
         
         result['hs_info'] = hs_info
         
@@ -513,7 +599,8 @@ class ExportDataIntegrator:
                 )
         
         # 5. Get export statistics
-        stats = self.get_export_statistics(hs_code, country)
+        stats_hs_code = effective_hs_code[:6] if len(effective_hs_code) >= 6 else effective_hs_code
+        stats = self.get_export_statistics(stats_hs_code, country)
         if stats:
             result['trade_statistics'] = stats
             result['has_trade_history'] = True
@@ -523,7 +610,7 @@ class ExportDataIntegrator:
         
         # 6. Search trade agreements
         if check_agreements and self.agreements_retriever:
-            search_query = f"export {hs_code} tariff duty requirements"
+            search_query = f"export {effective_hs_code} tariff duty requirements"
             agreement_docs = self.search_trade_agreements(search_query, country, top_k=3)
             if agreement_docs:
                 result['agreement_references'] = [
