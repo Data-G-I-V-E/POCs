@@ -14,6 +14,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 from config import Config
 from .state import AgentState
+from .trade_guard import is_explicit_trade_data_request, is_ftp_policy_reference_query
 from prompts.router_prompt import ROUTER_SYSTEM_PROMPT, ROUTER_HUMAN_TEMPLATE
 
 
@@ -239,10 +240,15 @@ class QueryRouter:
         # Reset per-query lookup cache to avoid leaking stale HS matches across turns.
         self._last_hs_matches = []
 
+        user_query = state["user_query"]
+        query_lower = user_query.lower()
+        is_trade_data_request = is_explicit_trade_data_request(user_query)
+        is_ftp_reference_query = is_ftp_policy_reference_query(user_query)
+
         response = self.routing_prompt | self.llm | StrOutputParser()
         result = response.invoke({
             "messages": state["messages"],
-            "query": state["user_query"]
+            "query": user_query
         })
         
         # Extract query type from LLM response (format: "ROUTE_TYPE | PRODUCT: name")
@@ -261,6 +267,11 @@ class QueryRouter:
             query_type = "vector"
         else:
             query_type = "general"
+
+        # Deterministic override: DGFT FTP article/section/chapter references are
+        # policy-document retrieval queries, not trade-data queries.
+        if is_ftp_reference_query and not is_trade_data_request:
+            query_type = "vector"
         
         # Extract product name from LLM response (PRODUCT: <name>)
         product_name = None
@@ -269,10 +280,12 @@ class QueryRouter:
             extracted = product_match.group(1).strip().strip('"\'')
             if extracted.upper() != "NONE" and len(extracted) > 1:
                 product_name = extracted
+
+        if is_ftp_reference_query and not is_trade_data_request:
+            product_name = None
         
         # Extract HS code and country
-        query_lower = state["user_query"].lower()
-        hs_match = re.search(r'\b(\d{6,8})\b', state["user_query"])
+        hs_match = re.search(r'\b(\d{6,8})\b', user_query)
         hs_code = self._normalize_hs_code(hs_match.group(1)) if hs_match else None
         
         # If no HS code in current query, scan conversation history for the most
@@ -280,7 +293,11 @@ class QueryRouter:
         # same product, NOT when the user is asking about a new product.
         # Skip history scan for hs_lookup (new classification request) and when
         # the query contains a new product name to look up.
-        _is_new_product_query = query_type == "hs_lookup" or bool(product_name)
+        _is_new_product_query = (
+            query_type == "hs_lookup"
+            or bool(product_name)
+            or (is_ftp_reference_query and not is_trade_data_request)
+        )
         if not hs_code and not _is_new_product_query:
             for msg in reversed(state.get("messages", [])[:-1]):
                 content = msg.content if hasattr(msg, "content") else str(msg)
@@ -290,12 +307,15 @@ class QueryRouter:
                     break
         
         # If still no HS code found, use LLM-extracted product name to search DB
-        if not hs_code and product_name:
+        if not hs_code and product_name and not (is_ftp_reference_query and not is_trade_data_request):
             hs_code = self._find_hs_code_by_description(product_name)
             # If we found an HS code by description, re-route to policy
             # since the user is clearly asking about a specific product
             if hs_code and query_type in ("general", "vector"):
                 query_type = "policy"
+
+        if is_ftp_reference_query and not is_trade_data_request:
+            hs_code = None
         
         country = None
         for c in Config.TARGET_COUNTRIES:

@@ -414,6 +414,7 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
             '850440','851310','851762',
             '902610',
         ]);
+        const KNOWN_TRADE_CODES_LIST = Array.from(KNOWN_TRADE_CODES).sort();
         const KNOWN_CHAPTERS = new Set(Array.from(KNOWN_TRADE_CODES).map(code => code.substring(0, 2)));
 
         // --- Collect HS code candidates (6-8 digit) ---
@@ -554,6 +555,12 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
         const tableEl = document.getElementById(`${chartId}-table`);
 
         let chartRendered = false;
+        let guardMessage = null;
+
+        function captureGuardMessage(message) {
+            if (!message) return;
+            if (!guardMessage) guardMessage = message;
+        }
 
         // Helper: render monthly line chart + table
         function renderMonthly(monthlyData, label) {
@@ -597,15 +604,42 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
             setTimeout(() => createBarChart(data.data, label, chartId), 50);
         }
 
+        // Helper: render guard message in chart card
+        function renderGuardNotice(message) {
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = 'Trade Data Guard';
+
+            const safeMessage = escapeHtml(message || 'Trade data request is blocked by HS code guard rules.');
+            const noticeHtml = `
+                <div style="padding:0.85rem;border:1px dashed var(--border-color);border-radius:10px;font-size:0.84rem;color:var(--text-secondary);line-height:1.45;">
+                    ${safeMessage}
+                </div>
+            `;
+
+            const chartPanel = document.getElementById(`${chartId}-panel-chart`);
+            if (chartPanel) chartPanel.innerHTML = noticeHtml;
+            if (tableEl) tableEl.innerHTML = noticeHtml;
+
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+        }
+
         // --- Pass 1: Try HS codes — only those known to have data ---
         for (const hsCode of allHsCandidates) {
             if (chartRendered) break;
             if (!KNOWN_TRADE_CODES.has(hsCode.substring(0, 6))) {
+                captureGuardMessage(
+                    `Trade data is not available for HS ${hsCode.substring(0, 6)}. ` +
+                    `Supported HS-6 codes are: ${KNOWN_TRADE_CODES_LIST.join(', ')}.`
+                );
                 console.log(`HS ${hsCode}: not in trade dataset, skipping`);
                 continue;
             }
             try {
                 const d = await getMonthlyTradeData(hsCode, null);
+                if (d.guarded && d.message) {
+                    captureGuardMessage(d.message);
+                }
                 if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
                     renderMonthly(d, hsCode); break;
                 }
@@ -613,6 +647,9 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
 
             try {
                 const d = await getTradeData(hsCode, null);
+                if (d.guarded && d.message) {
+                    captureGuardMessage(d.message);
+                }
                 if (d.data?.length > 0) {
                     renderAnnual(d, hsCode); break;
                 }
@@ -625,6 +662,9 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
                 if (chartRendered) break;
                 try {
                     const d = await getMonthlyTradeData(null, ch);
+                    if (d.guarded && d.message) {
+                        captureGuardMessage(d.message);
+                    }
                     if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
                         renderMonthly(d, `Chapter ${ch}`); break;
                     }
@@ -632,6 +672,9 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
 
                 try {
                     const d = await getTradeData(null, ch);
+                    if (d.guarded && d.message) {
+                        captureGuardMessage(d.message);
+                    }
                     if (d.data?.length > 0) {
                         renderAnnual(d, `Chapter ${ch}`); break;
                     }
@@ -641,7 +684,11 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
 
         // --- No data found: remove the chart card entirely ---
         if (!chartRendered) {
-            chartCard.remove();
+            if (guardMessage) {
+                renderGuardNotice(guardMessage);
+            } else {
+                chartCard.remove();
+            }
         }
 
         scrollToBottom();

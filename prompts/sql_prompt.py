@@ -63,6 +63,13 @@ column or add a note column).
 For policy tables (v_export_policy_unified, itc_hs_products, prohibited_items,
 restricted_items, ste_items, hs_master_8_digit) the full 8-digit code is fine —
 those tables have comprehensive coverage.
+
+CRITICAL DISAMBIGUATION RULES:
+- Legal/policy references like "Article 8.04", "Section 7.02", "Chapter 8 of FTP"
+  are document references, NOT HS code/chapter filters for trade tables.
+- Never convert "8.04" into chapter "80" or HS "0804" for trade-data SQL.
+- Use trade-data tables only when the query explicitly asks for trade/export
+  statistics, values, monthly/quarterly trends, or similar numeric trade metrics.
 ════════════════════════════════════════════════════════"""
 
 SQL_HUMAN_TEMPLATE = "Generate a SQL query for: {query}"

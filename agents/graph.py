@@ -28,6 +28,7 @@ from .vector_agent import VectorAgent
 from .agreements_agent import AgreementsAgent
 from .hs_lookup_agent import HSLookupAgent
 from .synthesizer import AnswerSynthesizer
+from .trade_guard import is_explicit_trade_data_request
 
 
 class ExportAdvisoryGraph:
@@ -64,8 +65,9 @@ class ExportAdvisoryGraph:
     
     def _combined_execute(self, state: AgentState) -> AgentState:
         """Execute both SQL and Policy agents for complex queries"""
-        # Run SQL agent first
-        state = self.sql_agent.execute(state)
+        # Run SQL only when user explicitly asks for trade/export data.
+        if is_explicit_trade_data_request(state.get("user_query", "")):
+            state = self.sql_agent.execute(state)
         
         # Run Policy agent (even without a specific HS code,
         # we do a chapter-level policy check)
