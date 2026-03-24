@@ -450,8 +450,7 @@ class HSLookupAgent:
                 "Could you provide more detail?\n\n"
                 "- Full product name (e.g. *'fresh onions and shallots'*)\n"
                 "- Chapter/heading if known (e.g. *'Chapter 07'*)\n"
-                "- Alternative names or trade names\n\n"
-                "ℹ️ This system covers Chapters 7, 8, 61, 62, 85, and 90."
+                "- Alternative names or trade names"
             )
         elif count == 1 and results[0]["score"] >= 0.70:
             needs_clarification = True   # still ask user to confirm
