@@ -1,21 +1,39 @@
 """
 STE Items Database Importer
-This script imports State Trading Enterprise (STE) items into PostgreSQL
-Database: PPL-AI
-Password: shreyaan999!
+This script imports State Trading Enterprise (STE) items into PostgreSQL.
+Reads SUPABASE_CONNECTION_STRING env var if set, otherwise falls back to
+individual DB_* env vars (local dev defaults).
 """
 
+import os
 import psycopg2
 from psycopg2 import sql
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 
-# Database connection parameters
-DB_CONFIG = {
-    'dbname': 'PPL-AI',
-    'user': 'postgres',
-    'password': 'shreyaan999!',
-    'host': 'localhost',
-    'port': '5432'
-}
+load_dotenv()
+
+def _build_db_config():
+    supabase_url = os.getenv('SUPABASE_CONNECTION_STRING', '')
+    if supabase_url:
+        u = urlparse(supabase_url)
+        return {
+            'host':     u.hostname,
+            'port':     u.port or 5432,
+            'dbname':   u.path.lstrip('/'),
+            'user':     u.username,
+            'password': u.password,
+            'sslmode':  'require',
+        }
+    return {
+        'host':     os.getenv('DB_HOST', 'localhost'),
+        'port':     int(os.getenv('DB_PORT', '5432')),
+        'dbname':   os.getenv('DB_NAME', 'PPL-AI'),
+        'user':     os.getenv('DB_USER', 'postgres'),
+        'password': os.getenv('DB_PASSWORD', 'shreyaan999!'),
+    }
+
+DB_CONFIG = _build_db_config()
 
 # All STE items from the PDF
 STE_ITEMS_DATA = """
@@ -329,7 +347,8 @@ def main():
     print("="*60 + "\n")
     print(f"Target Database: {DB_CONFIG['dbname']}")
     print(f"Host: {DB_CONFIG['host']}:{DB_CONFIG['port']}")
-    print(f"User: {DB_CONFIG['user']}\n")
+    print(f"User: {DB_CONFIG['user']}")
+    print(f"SSL: {DB_CONFIG.get('sslmode', 'disabled')}\n")
     
     # Parse the data
     print("Parsing data from PDF...")
@@ -369,13 +388,12 @@ def main():
         
     except psycopg2.OperationalError as e:
         print(f"\n❌ CONNECTION ERROR:")
-        print(f"Could not connect to database '{DB_CONFIG['dbname']}'")
+        print(f"Could not connect to database '{DB_CONFIG['dbname']}' at {DB_CONFIG['host']}")
         print(f"Error: {e}")
         print("\nPlease ensure:")
-        print("  1. PostgreSQL is running")
-        print("  2. Database 'PPL-AI' exists")
-        print("  3. Password is correct")
-        print("  4. User has appropriate permissions")
+        print("  1. SUPABASE_CONNECTION_STRING is set in .env (for Supabase)")
+        print("  2. Or DB_HOST / DB_USER / DB_PASSWORD env vars are set (for local)")
+        print("  3. The database exists and the user has appropriate permissions")
         return False
         
     except psycopg2.Error as e:

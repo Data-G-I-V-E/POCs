@@ -255,6 +255,53 @@ COMMENT ON FUNCTION get_export_policy IS 'Get the complete export policy for any
 COMMENT ON VIEW all_export_policy_items IS 'Unified view of all export policy items including prohibited, restricted, and STE items';
 COMMENT ON VIEW export_policy_summary IS 'Summary statistics of export policy items by type';
 
+-- =====================================================
+-- SEED DATA: All STE Items from ITC(HS) 2017 Schedule 2
+-- =====================================================
+
+INSERT INTO ste_items (hs_code, description, export_policy, policy_condition, authorized_entity) VALUES
+('25085031', 'Sillimanite ---- Lumps', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('25085032', 'Sillimanite ---- Fines (including sand)', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('25085039', 'Sillimanite ---- Other', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('25132030', 'Natural garnet', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26011111', '60percent Fe or more but below 62percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011112', '62percent Fe or more but below 65percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011119', '65percent Fe and above', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011121', 'Iron ore lumps (below 60percent Fe) ---- Iron ore lumps below 55percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011122', 'Iron ore lumps (below 60percent Fe) ---- Iron ore lumps 55percent Fe or more but below 58 percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011129', 'Iron ore lumps (below 60percent Fe) ---- 58 percent Fe or more but below 60 percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011131', 'Iron ore fines (62percent Fe or more) ---- 62percent Fe or more but below 65percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011139', 'Iron ore fines (62percent Fe or more) ---- 65percent Fe and above', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011141', 'Iron ore Fines (below 62percent Fe) ---- below 55percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011142', 'Iron ore Fines (below 62percent Fe) ---- 55percent Fe or more but below 58percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011143', 'Iron ore Fines (below 62percent Fe) ---- 58percent Fe or more but below 60percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011149', 'Iron ore Fines (below 62percent Fe) ---- 60percent Fe or more but below 62percent Fe', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26011150', 'Iron ore concentrates', 'STE (State Trading Enterprise)', 'Export of Iron ore concentrate prepared by benefication and/or concentration of lowgrade ore containing 40 percent or less of iron produced by Kudremukh Iron Ore Company Limited can be exported by STE- Kudremukh Iron Ore Company Limited, Bangalore.', 'Kudremukh Iron Ore Company Limited'),
+('26011190', 'Others', 'STE (State Trading Enterprise)', 'Subject to Policy Condition 1 of the Chapter.', NULL),
+('26020020', 'Manganese ore (44percent or more but below 46percent)', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020030', 'Manganese ore (40percent or more but below 44percent)', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020040', 'Manganese ore (35percent or more but below 40percent)', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020050', 'Manganese ore (30percent or more but below 35percent)', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020060', 'Ferruginous (10percent or more but below 30percent)', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020070', 'Manganese ore sinters, agglomerated', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26020090', 'Other', 'STE (State Trading Enterprise)', 'Export is allowed through Manganese Ore India Limited (MOIL) only.', 'MOIL'),
+('26121000', 'Uranium ores and concentrates', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26122000', 'Thorium ores and concentrates', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26140010', 'Ilmenite, unprocessed', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26140020', 'Ilmenite, upgraded (beneficiated ilmenite including ilmenite ground)', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26140031', 'Rutile: ---- Rare earth oxides including rutile sand', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26140039', 'Rutile: ---- Other', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26140090', 'Other', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('26151000', 'Zirconium ores and concentrates', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Rare Earths Limited (IREL) only.', 'IREL'),
+('27090010', 'PETROLEUM CRUDE', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Oil Corporation Limited (IOCL) only.', 'IOCL'),
+('27090090', 'OTHER', 'STE (State Trading Enterprise)', 'Export is allowed through Indian Oil Corporation Limited (IOCL) only.', 'IOCL')
+ON CONFLICT (hs_code) DO UPDATE SET
+    description = EXCLUDED.description,
+    export_policy = EXCLUDED.export_policy,
+    policy_condition = EXCLUDED.policy_condition,
+    authorized_entity = EXCLUDED.authorized_entity,
+    updated_at = CURRENT_TIMESTAMP;
+
 -- Success message
 SELECT 'STE Items schema created successfully!' as status;
 SELECT 'Tables created: ste_items' as tables;
