@@ -310,9 +310,17 @@ class QueryRouter:
         if not hs_code and product_name and not (is_ftp_reference_query and not is_trade_data_request):
             hs_code = self._find_hs_code_by_description(product_name)
             # If we found an HS code by description, re-route to policy
-            # since the user is clearly asking about a specific product
-            if hs_code and query_type in ("general", "vector"):
-                query_type = "policy"
+            # since the user is clearly asking about a specific product.
+            # Also upgrade hs_lookup → policy when the top match came from a
+            # restriction table (ste_items / restricted_items / prohibited_items)
+            # so the policy agent always fires for known restricted products.
+            if hs_code:
+                top_match = self._last_hs_matches[0] if self._last_hs_matches else {}
+                from_policy_table = top_match.get("source") in (
+                    "ste_items", "restricted_items", "prohibited_items"
+                )
+                if query_type in ("general", "vector", "hs_lookup") or from_policy_table:
+                    query_type = "policy"
 
         if is_ftp_reference_query and not is_trade_data_request:
             hs_code = None

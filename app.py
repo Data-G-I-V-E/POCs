@@ -261,39 +261,59 @@ async def get_trade_data(request: TradeDataRequest):
         cursor = conn.cursor()
 
         query = """
-            SELECT c.country_name, SUM(es.export_value_crore) as total_value
+            SELECT c.country_name, es.year_label, es.export_value_crore as value
             FROM export_statistics es
             JOIN countries c ON es.country_code = c.country_code
             WHERE es.hs_code = %s
-            GROUP BY c.country_name, es.country_code
-            ORDER BY total_value DESC
+            ORDER BY c.country_name, es.year_label
         """
         cursor.execute(query, (hs_code_6,))
-        
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
-        # Format for chart
-        data = []
-        # Convert request.countries to lowercase for comparison
+
+        def short_country(name):
+            if not name:
+                return "Unknown"
+            nl = name.lower()
+            if "emirates" in nl:
+                return "UAE"
+            if "kingdom" in nl:
+                return "UK"
+            return name
+
         countries_lower = [c.lower() for c in request.countries]
-        
-        for country_name, value in results:
-            if country_name:
-                # Check if country name matches any in the request list
-                # Handle variations: "United Arab Emirates" → "uae", "United Kingdom" → "uk"
-                country_lower = country_name.lower()
-                if ('uae' in countries_lower and 'emirates' in country_lower) or \
-                   ('uk' in countries_lower and 'kingdom' in country_lower) or \
-                   ('australia' in countries_lower and 'australia' in country_lower):
-                    data.append({
-                        "country": country_name.upper() if len(country_name) <= 3 else country_name,
-                        "value": float(value) if value else 0
-                    })
-        
+        data_by_year: Dict[str, List[Dict]] = {}
+        countries_seen: List[str] = []
+
+        for country_name, year_label, value in results:
+            if not country_name:
+                continue
+            cn_lower = country_name.lower()
+            if not (('uae' in countries_lower and 'emirates' in cn_lower) or
+                    ('uk' in countries_lower and 'kingdom' in cn_lower) or
+                    ('australia' in countries_lower and 'australia' in cn_lower)):
+                continue
+            label = short_country(country_name)
+            if label not in countries_seen:
+                countries_seen.append(label)
+            if year_label not in data_by_year:
+                data_by_year[year_label] = []
+            data_by_year[year_label].append({
+                "country": label,
+                "value": float(value) if value else 0
+            })
+
+        years = sorted(data_by_year.keys())
+        # backward compat: expose latest year as flat 'data'
+        data = data_by_year.get(years[-1], []) if years else []
+
         return {
             "data": data,
+            "data_by_year": data_by_year,
+            "years": years,
+            "countries": countries_seen,
             "hs_code": hs_code_6,
             "chapter": None,
             "guarded": False,
@@ -336,17 +356,17 @@ async def get_monthly_trade_data(request: TradeDataRequest):
 
         query = """
             SELECT country_name, month, month_name, export_value_crore,
-                   monthly_growth_pct, ytd_value_crore
+                   monthly_growth_pct, ytd_value_crore, prev_year_value_crore
             FROM v_monthly_exports
             WHERE hs_code = %s
             ORDER BY country_name, month
         """
         cursor.execute(query, (hs_code_6,))
-        
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         # Country name normalization for display
         def short_country(name):
             if not name:
@@ -357,13 +377,13 @@ async def get_monthly_trade_data(request: TradeDataRequest):
             if "kingdom" in nl:
                 return "UK"
             return name
-        
+
         # Group by country → list of monthly values
         countries_lower = [c.lower() for c in request.countries]
         monthly_data = {}  # { "Australia": [{month, value, growth}, ...], ... }
         months_set = set()
-        
-        for country_name, month, month_name, value, growth, ytd in results:
+
+        for country_name, month, month_name, value, growth, ytd, prev_value in results:
             if not country_name:
                 continue
             cn_lower = country_name.lower()
@@ -372,15 +392,16 @@ async def get_monthly_trade_data(request: TradeDataRequest):
                     ('uk' in countries_lower and 'kingdom' in cn_lower) or
                     ('australia' in countries_lower and 'australia' in cn_lower)):
                 continue
-            
+
             label = short_country(country_name)
             if label not in monthly_data:
                 monthly_data[label] = []
-            
+
             monthly_data[label].append({
                 "month": month,
                 "month_name": month_name,
                 "value": float(value) if value else 0,
+                "prev_year_value": float(prev_value) if prev_value else 0,
                 "growth_pct": float(growth) if growth else None,
                 "ytd_value": float(ytd) if ytd else 0
             })

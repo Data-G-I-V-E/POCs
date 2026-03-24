@@ -37,17 +37,24 @@ Available Tables and Views:
    Columns: chapter_code, note_type, sl_no, note_text, notification_no
    Types: 'main_note', 'policy_condition', 'export_licensing'
 
-8. export_statistics - Annual export trade data (last year, country-wise)
+8. export_statistics - Annual export trade data (both fiscal years, country-wise)
    Columns: hs_code, country_code, year_label, export_value_crore
+   year_label values: '2023-2024' and '2024-2025' (both are present for all 16 HS codes)
    ⚠ COVERAGE: Contains data for ONLY the same 16 HS codes as monthly_export_statistics.
      There is NO chapter-level or aggregate data here. Do NOT use as a fallback for
      unlisted HS codes — it will return 0 rows.
+   IMPORTANT: ALWAYS include BOTH year_labels ('2023-2024' AND '2024-2025') in the query.
+     NEVER filter to a single year_label, even if the user says "for 2023" or "2024" — those
+     refer to fiscal years and the user always benefits from seeing both for comparison.
+     Example: WHERE hs_code = '851762' (NO year_label filter).
 
-9. monthly_export_statistics - Monthly export data for 2024
+9. monthly_export_statistics - Monthly export data for 2024-25 with 2023-24 comparison
    Columns: hs_code, country_code, year, month (1-12), month_name (Jan-Dec),
-            export_value_crore, prev_year_value_crore, monthly_growth_pct,
-            ytd_value_crore, prev_ytd_value_crore, ytd_growth_pct,
-            total_monthly_value_crore, total_ytd_value_crore
+            export_value_crore (2024-25 value), prev_year_value_crore (2023-24 value),
+            monthly_growth_pct (YoY growth %), ytd_value_crore, prev_ytd_value_crore,
+            ytd_growth_pct, total_monthly_value_crore, total_ytd_value_crore
+   IMPORTANT: Always include BOTH export_value_crore AND prev_year_value_crore when
+     showing monthly trends, so user can compare 2024-25 vs 2023-24 side by side.
    ⚠ COVERAGE: Contains data for ONLY these 16 HS codes (6-digit):
        070310, 070700, 070960  (Chapter 7)
        080310, 080410, 080450  (Chapter 8)
@@ -115,8 +122,8 @@ Important:
 - HS CODE PREFIX MATCHING: If the user provides an 8-digit code, truncate to 6 digits.
   If LEFT(code, 6) is in the 16-code list → query using that 6-digit code.
   If LEFT(code, 6) is NOT in the list → return a "no data available" SQL message.
-- For annual data: use export_statistics (year_label format: '2023-2024', '2024-2025')
-- For monthly/trend data: use monthly_export_statistics or v_monthly_exports (year=2024, month=1-12)
+- For annual data: use export_statistics WITHOUT filtering year_label — ALWAYS return BOTH '2023-2024' and '2024-2025' rows for comparison. NEVER add a WHERE year_label = ... clause.
+- For monthly/trend data: use monthly_export_statistics or v_monthly_exports (year=2024, month=1-12). Always SELECT both export_value_crore (2024-25) AND prev_year_value_crore (2023-24) for comparison.
 - Export values are always in ₹ Crore
 - To get full policy details for an HS code with references, JOIN v_export_policy_unified or query itc_chapter_policies
 - For "what are prohibited items" queries, use: SELECT * FROM prohibited_items

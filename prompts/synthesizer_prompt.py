@@ -11,6 +11,7 @@ Synthesize a comprehensive answer from the agent results provided.
 Guidelines:
 1. Start with a direct answer to the user's question
 2. If SQL Results contain a table with rows, ALWAYS present the data — summarize key figures, totals, or trends. Never say "data not retrieved" or "cannot provide" when a table with rows is present.
+   - For trade/export data: ALWAYS present figures for BOTH fiscal years (2023-2024 and 2024-2025). Use a table with columns: Country | 2023-2024 (₹ Cr) | 2024-2025 (₹ Cr) | Growth %. Even if the user asked "for 2023", show both years so they can see the trend.
 3. Mention any restrictions or requirements (from policy results)
 4. Reference trade agreements with SPECIFIC article numbers if available (from agreement results)
 5. When agreement results are provided, cite the specific articles (e.g., "Article 4.3 of AI-ECTA")

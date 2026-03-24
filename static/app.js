@@ -570,7 +570,7 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
             if (tableEl) {
                 tableEl.innerHTML = `
                     <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
-                        <strong>Monthly Export Trend (2024)</strong> — ${label}
+                        <strong>Monthly Export Trend (2024-25 vs 2023-24)</strong> — ${label}
                     </p>
                     ${createMonthlyDataTable(monthlyData)}
                     <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
@@ -591,9 +591,9 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
             if (tableEl) {
                 tableEl.innerHTML = `
                     <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
-                        <strong>Export Data by Country (Annual)</strong> — ${label}
+                        <strong>Export Data by Country (2023-24 vs 2024-25)</strong> — ${label}
                     </p>
-                    ${createDataTable(data.data)}
+                    ${createDataTable(data.data, data.data_by_year, data.years, data.countries)}
                     <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
                         Last Updated: ${new Date(data.timestamp).toLocaleString()}
                     </p>
@@ -601,7 +601,7 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
             }
             if (loadingEl) loadingEl.style.display = 'none';
             if (contentEl) contentEl.style.display = 'block';
-            setTimeout(() => createBarChart(data.data, label, chartId), 50);
+            setTimeout(() => createBarChart(data.data, label, chartId, data.data_by_year, data.years, data.countries), 50);
         }
 
         // Helper: render guard message in chart card
@@ -698,7 +698,64 @@ async function embedChartInMessage(msgDiv, response, queryText = '') {
     }
 }
 
-function createDataTable(data) {
+function createDataTable(data, dataByYear, years, countries) {
+    if (dataByYear && years && years.length > 0) {
+        // Multi-year comparison table
+        const allCountries = countries && countries.length > 0
+            ? countries
+            : [...new Set(Object.values(dataByYear).flat().map(d => d.country))];
+        if (allCountries.length === 0) return '<p>No data available</p>';
+
+        let html = `<table class="data-table"><thead><tr><th>Country</th>`;
+        years.forEach(y => { html += `<th style="text-align:right;">${y} (₹ Cr)</th>`; });
+        if (years.length === 2) html += `<th style="text-align:right;">YoY Growth</th>`;
+        html += `</tr></thead><tbody>`;
+
+        allCountries.forEach(country => {
+            const vals = years.map(y => {
+                const entry = (dataByYear[y] || []).find(d => d.country === country);
+                return entry ? entry.value : 0;
+            });
+            html += `<tr><td style="font-weight:500;">${country}</td>`;
+            vals.forEach(v => {
+                html += `<td style="text-align:right;">₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+            });
+            if (years.length === 2) {
+                if (vals[0] > 0) {
+                    const growth = ((vals[1] - vals[0]) / vals[0] * 100).toFixed(1);
+                    const color = growth >= 0 ? '#10b981' : '#ef4444';
+                    const arrow = growth >= 0 ? '▲' : '▼';
+                    html += `<td style="text-align:right;color:${color};">${arrow}${Math.abs(growth)}%</td>`;
+                } else {
+                    html += `<td style="text-align:right;">—</td>`;
+                }
+            }
+            html += `</tr>`;
+        });
+
+        // Totals row
+        html += `<tr style="font-weight:600;border-top:2px solid var(--border);"><td>Total</td>`;
+        const totals = years.map(y =>
+            (dataByYear[y] || []).reduce((s, d) => s + d.value, 0)
+        );
+        totals.forEach(t => {
+            html += `<td style="text-align:right;">₹${t.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        });
+        if (years.length === 2) {
+            if (totals[0] > 0) {
+                const growth = ((totals[1] - totals[0]) / totals[0] * 100).toFixed(1);
+                const color = growth >= 0 ? '#10b981' : '#ef4444';
+                const arrow = growth >= 0 ? '▲' : '▼';
+                html += `<td style="text-align:right;color:${color};">${arrow}${Math.abs(growth)}%</td>`;
+            } else {
+                html += `<td>—</td>`;
+            }
+        }
+        html += `</tr></tbody></table>`;
+        return html;
+    }
+
+    // Fallback: single-year table
     if (!data || data.length === 0) return '<p>No data available</p>';
 
     const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -732,10 +789,15 @@ function createMonthlyDataTable(monthlyData) {
     const months = monthlyData.months;
     if (countries.length === 0 || months.length === 0) return '<p>No monthly data available</p>';
 
-    let html = `<table class="data-table"><thead><tr>
-        <th>Month</th>`;
+    // Check if any entry has prev_year_value
+    const hasPrevYear = countries.some(c =>
+        (monthlyData.monthly_data[c] || []).some(m => m.prev_year_value > 0)
+    );
+
+    let html = `<table class="data-table"><thead><tr><th>Month</th>`;
     countries.forEach(c => {
-        html += `<th style="text-align:right;">${c} (₹ Cr)</th>`;
+        html += `<th style="text-align:right;">${c} 2024-25 (₹ Cr)</th>`;
+        if (hasPrevYear) html += `<th style="text-align:right;color:var(--text-secondary);">${c} 2023-24 (₹ Cr)</th>`;
     });
     html += `</tr></thead><tbody>`;
 
@@ -744,6 +806,7 @@ function createMonthlyDataTable(monthlyData) {
         countries.forEach(country => {
             const entry = monthlyData.monthly_data[country].find(m => m.month_name === monthName);
             const val = entry ? entry.value : 0;
+            const prevVal = entry && entry.prev_year_value !== undefined ? entry.prev_year_value : 0;
             const growth = entry && entry.growth_pct !== null ? entry.growth_pct : null;
             let growthBadge = '';
             if (growth !== null) {
@@ -752,6 +815,9 @@ function createMonthlyDataTable(monthlyData) {
                 growthBadge = ` <span style="font-size:0.75rem;color:${color};">${arrow}${Math.abs(growth).toFixed(1)}%</span>`;
             }
             html += `<td style="text-align:right;">₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${growthBadge}</td>`;
+            if (hasPrevYear) {
+                html += `<td style="text-align:right;color:var(--text-secondary);">₹${prevVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+            }
         });
         html += `</tr>`;
     });
@@ -760,14 +826,18 @@ function createMonthlyDataTable(monthlyData) {
     html += `<tr style="font-weight:600;border-top:2px solid var(--border);"><td>Total</td>`;
     countries.forEach(country => {
         const total = monthlyData.monthly_data[country].reduce((s, m) => s + m.value, 0);
+        const prevTotal = monthlyData.monthly_data[country].reduce((s, m) => s + (m.prev_year_value || 0), 0);
         html += `<td style="text-align:right;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        if (hasPrevYear) {
+            html += `<td style="text-align:right;color:var(--text-secondary);">₹${prevTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        }
     });
     html += `</tr></tbody></table>`;
 
     return html;
 }
 
-function createBarChart(data, label, canvasId) {
+function createBarChart(data, label, canvasId, dataByYear, years, countries) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
@@ -775,28 +845,55 @@ function createBarChart(data, label, canvasId) {
 
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
-    // Dark theme chart colors
-    const chartColors = [
-        { bg: 'rgba(99, 102, 241, 0.7)', border: 'rgba(99, 102, 241, 1)' },
-        { bg: 'rgba(16, 185, 129, 0.7)', border: 'rgba(16, 185, 129, 1)' },
-        { bg: 'rgba(245, 158, 11, 0.7)', border: 'rgba(245, 158, 11, 1)' },
-        { bg: 'rgba(239, 68, 68, 0.7)', border: 'rgba(239, 68, 68, 1)' },
-        { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
+    // Dark theme chart colors — one per year
+    const yearColors = [
+        { bg: 'rgba(99, 102, 241, 0.75)', border: 'rgba(99, 102, 241, 1)' },
+        { bg: 'rgba(16, 185, 129, 0.75)', border: 'rgba(16, 185, 129, 1)' },
+        { bg: 'rgba(245, 158, 11, 0.75)', border: 'rgba(245, 158, 11, 1)' },
     ];
+
+    let chartLabels, datasets;
+
+    if (dataByYear && years && years.length > 0) {
+        // Grouped bar chart: X = country, datasets = one per year
+        chartLabels = countries && countries.length > 0
+            ? countries
+            : [...new Set(Object.values(dataByYear).flat().map(d => d.country))];
+        datasets = years.map((year, i) => {
+            const color = yearColors[i % yearColors.length];
+            const yearData = dataByYear[year] || [];
+            return {
+                label: year,
+                data: chartLabels.map(country => {
+                    const entry = yearData.find(d => d.country === country);
+                    return entry ? entry.value : 0;
+                }),
+                backgroundColor: color.bg,
+                borderColor: color.border,
+                borderWidth: 2,
+                borderRadius: 6,
+                borderSkipped: false,
+            };
+        });
+    } else {
+        // Fallback: single-year flat data
+        chartLabels = data.map(d => d.country);
+        datasets = [{
+            label: 'Export Value (Crore ₹)',
+            data: data.map(d => d.value),
+            backgroundColor: data.map((_, i) => yearColors[i % yearColors.length].bg),
+            borderColor: data.map((_, i) => yearColors[i % yearColors.length].border),
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+        }];
+    }
 
     chartInstances[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: data.map(d => d.country),
-            datasets: [{
-                label: 'Export Value (Crore ₹)',
-                data: data.map(d => d.value),
-                backgroundColor: data.map((_, i) => chartColors[i % chartColors.length].bg),
-                borderColor: data.map((_, i) => chartColors[i % chartColors.length].border),
-                borderWidth: 2,
-                borderRadius: 6,
-                borderSkipped: false,
-            }]
+            labels: chartLabels,
+            datasets
         },
         options: {
             responsive: true,
@@ -881,24 +978,26 @@ function createLineChart(monthlyData, label, canvasId) {
     if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
     const chartColors = [
-        { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)' },
-        { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 1)' },
-        { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 1)' },
+        { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)', prevBorder: 'rgba(99, 102, 241, 0.4)' },
+        { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 1)', prevBorder: 'rgba(16, 185, 129, 0.4)' },
+        { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 1)', prevBorder: 'rgba(245, 158, 11, 0.4)' },
     ];
 
     const countries = Object.keys(monthlyData.monthly_data);
     const months = monthlyData.months;
 
-    const datasets = countries.map((country, i) => {
+    const datasets = [];
+    countries.forEach((country, i) => {
         const color = chartColors[i % chartColors.length];
-        const values = months.map(mn => {
+
+        // Current year (2024-25) — solid line
+        const currentValues = months.map(mn => {
             const entry = monthlyData.monthly_data[country].find(m => m.month_name === mn);
             return entry ? entry.value : 0;
         });
-
-        return {
-            label: country,
-            data: values,
+        datasets.push({
+            label: `${country} (2024-25)`,
+            data: currentValues,
             borderColor: color.border,
             backgroundColor: color.bg,
             fill: true,
@@ -909,7 +1008,30 @@ function createLineChart(monthlyData, label, canvasId) {
             pointBackgroundColor: color.border,
             pointBorderColor: '#0f1117',
             pointBorderWidth: 2,
-        };
+        });
+
+        // Previous year (2023-24) — dashed line
+        const prevValues = months.map(mn => {
+            const entry = monthlyData.monthly_data[country].find(m => m.month_name === mn);
+            return entry && entry.prev_year_value !== undefined ? entry.prev_year_value : 0;
+        });
+        if (prevValues.some(v => v > 0)) {
+            datasets.push({
+                label: `${country} (2023-24)`,
+                data: prevValues,
+                borderColor: color.prevBorder,
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.35,
+                borderWidth: 1.8,
+                borderDash: [6, 4],
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: color.prevBorder,
+                pointBorderColor: '#0f1117',
+                pointBorderWidth: 1,
+            });
+        }
     });
 
     chartInstances[canvasId] = new Chart(ctx, {
@@ -925,7 +1047,7 @@ function createLineChart(monthlyData, label, canvasId) {
             plugins: {
                 title: {
                     display: true,
-                    text: `Monthly Export Trend — HS ${label} (2024)`,
+                    text: `Monthly Export Trend — HS ${label} (2024-25 vs 2023-24)`,
                     color: '#e8eaed',
                     font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
                     padding: { bottom: 16 }
@@ -978,7 +1100,7 @@ function createLineChart(monthlyData, label, canvasId) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Month (2024)',
+                        text: 'Month',
                         color: '#9aa0b0',
                         font: { family: 'Inter, sans-serif', size: 12 }
                     },
