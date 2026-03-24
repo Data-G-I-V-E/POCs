@@ -326,10 +326,21 @@ class QueryRouter:
             hs_code = None
         
         country = None
-        for c in Config.TARGET_COUNTRIES:
-            if c in query_lower:
-                country = c
+        _country_aliases = {
+            'aus': 'australia', 'ecta': 'australia', 'ai-ecta': 'australia',
+            'india-aus': 'australia', 'india-australia': 'australia',
+            'cepa': 'uae', 'india-uae': 'uae',
+            'ceta': 'uk', 'india-uk': 'uk',
+        }
+        for alias, canonical in _country_aliases.items():
+            if alias in query_lower:
+                country = canonical
                 break
+        if not country:
+            for c in Config.TARGET_COUNTRIES:
+                if c in query_lower:
+                    country = c
+                    break
         
         # ── Auto-upgrade to COMBINED for comprehensive answers ──
         # When we have both a product (HS code) and a country, the user

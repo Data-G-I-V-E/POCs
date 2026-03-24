@@ -42,6 +42,7 @@ CRITICAL RULE — Policy status:
 - If policy results say "PROHIBITED" → clearly state export is not allowed and show the policy condition.
 - If policy results say "RESTRICTED" → clearly state restrictions apply and show the policy condition.
 - If policy results say "STE" → clearly state export is only allowed through the named entity (e.g., MOIL, IREL, IOCL) and show the condition.
+- NEVER say "freely exportable", "no restrictions", or "free" if policy results contain STE, RESTRICTED, or PROHIBITED conditions — even if "Export Allowed: True" appears alongside requirements.
 - Never invent restrictions or "CHECK_POLICY" warnings that are not present in the policy results.
 
 IMPORTANT: Use the conversation history to maintain context.

@@ -92,6 +92,7 @@ class AnswerSynthesizer:
                         policy_summary  = f"Description: {result.get('description', 'N/A')}\n"
 
                     # Core policy decision — based solely on the three restriction tables
+                    # Runs for BOTH can_export and get_hs_code_info paths
                     if not is_prohibited and not is_restricted and not is_ste:
                         policy_summary += "Export Policy: FREE — not found in prohibited, restricted, or STE lists."
                     else:

@@ -111,19 +111,40 @@ class ExportDataIntegrator:
                 candidates.append(raw8)
 
         return candidates
-    
+
+    def _recover_connection(self):
+        """Recover from aborted PostgreSQL transaction by rolling back, reconnecting if needed."""
+        try:
+            if self.conn and not self.conn.closed:
+                self.conn.rollback()
+                return
+        except Exception:
+            pass
+        # Connection is dead — reconnect
+        try:
+            self.conn = psycopg2.connect(**Config.DB_CONFIG)
+            self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+            logger.info("✓ DB connection recovered")
+        except Exception as e:
+            logger.error(f"❌ DB reconnect failed: {e}")
+            self.conn = None
+            self.cursor = None
+
     # ========== HS CODE QUERIES ==========
-    
+
     def get_hs_code_info(self, hs_code: str) -> Optional[Dict]:
         """
         Get comprehensive HS code information from all sources
-        
+
         Args:
             hs_code: 6-digit or longer HS code
-            
+
         Returns:
             Dict with HS code info, export policy, restrictions, etc.
         """
+        # Recover from any prior aborted transaction before running restriction checks
+        self._recover_connection()
+
         if not self.cursor:
             return None
 
@@ -287,7 +308,8 @@ class ExportDataIntegrator:
                 return dict(result)
         except Exception as e:
             logger.debug(f"Error checking prohibited for {hs_code}: {e}")
-        
+            self._recover_connection()
+
         # Prefix match: 6-digit query matches 8-digit prohibited entry
         prefix_code = next((code for code in candidates if len(code) <= 6), None)
         if prefix_code:
@@ -304,6 +326,7 @@ class ExportDataIntegrator:
                     return dict(result)
             except Exception as e:
                 logger.debug(f"Error prefix-checking prohibited for {prefix_code}: {e}")
+                self._recover_connection()
         
         return None
     
@@ -328,7 +351,8 @@ class ExportDataIntegrator:
                 return dict(result)
         except Exception as e:
             logger.debug(f"Error checking restricted for {hs_code}: {e}")
-        
+            self._recover_connection()
+
         # Prefix match: 6-digit query matches 8-digit restricted entry
         prefix_code = next((code for code in candidates if len(code) <= 6), None)
         if prefix_code:
@@ -345,6 +369,7 @@ class ExportDataIntegrator:
                     return dict(result)
             except Exception as e:
                 logger.debug(f"Error prefix-checking restricted for {prefix_code}: {e}")
+                self._recover_connection()
         
         return None
     
@@ -370,7 +395,8 @@ class ExportDataIntegrator:
                 return dict(result)
         except Exception as e:
             logger.debug(f"Error checking STE for {hs_code}: {e}")
-        
+            self._recover_connection()
+
         # Prefix match: 6-digit query matches 8-digit STE entry
         prefix_code = next((code for code in candidates if len(code) <= 6), None)
         if prefix_code:
@@ -388,7 +414,8 @@ class ExportDataIntegrator:
                     return dict(result)
             except Exception as e:
                 logger.debug(f"Error prefix-checking STE for {prefix_code}: {e}")
-        
+                self._recover_connection()
+
         return None
     
     def _get_chapter_notes(self, hs_code: str) -> Optional[Dict]:
