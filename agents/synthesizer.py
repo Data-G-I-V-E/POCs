@@ -210,7 +210,7 @@ class AnswerSynthesizer:
                     for m in matches[:8]:
                         lvl   = level_label.get(m.get("code_level", 3), "Code")
                         score = f"{m.get('score', 0):.0%}"
-                        desc  = m["description"][:70]
+                        desc  = m["description"]  # full description — DB already abbreviates
                         lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {lvl} | {desc} | {score} |")
                     hs_lookup_summary = "\n".join(lines)
                 elif c_type == "too_broad":
@@ -222,7 +222,7 @@ class AnswerSynthesizer:
                         "|---------|---------|-------------|",
                     ]
                     for m in matches[:5]:
-                        lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {m['description'][:60]} |")
+                        lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {m['description']} |")
                     hs_lookup_summary = "\n".join(lines)
                 else:
                     # No clarification needed — single good match (or old-format ambiguous)
