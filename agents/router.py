@@ -293,12 +293,48 @@ class QueryRouter:
             product_name = None
         
         # Extract HS code and country
+        # Match 6-8 digit codes in the current message (full subheading/tariff lines).
         hs_match = re.search(r'\b(\d{6,8})\b', user_query)
         hs_code = self._normalize_hs_code(hs_match.group(1)) if hs_match else None
         # hs_confirmed: True when HS code is either typed by the user in the current
         # message OR was carried forward from a previously confirmed code in history.
         # False = code was never explicitly confirmed → must go through hs_lookup first.
         hs_confirmed = hs_code is not None
+
+        CONFIRMATION_KEYWORDS = [
+            'yes', 'yep', 'yeah', 'yup', 'ok', 'okay', 'sure', 'correct',
+            'confirmed', 'confirm', 'right', 'affirmative', 'proceed',
+            'go ahead', 'that is correct', "that's correct", "that's right",
+            'use that', 'use this', 'that one', 'good', 'perfect', 'great',
+        ]
+
+        # ── Resolve confirmation against pending HS lookup ─────────────────────
+        # When the prior turn left a confirm_one / pick_one pending (persisted in
+        # session_hs_pending and restored into state["hs_lookup_results"]), and the
+        # user's message contains a confirmation keyword, resolve the HS code from
+        # state rather than by regex-parsing the message.  This handles any code
+        # length (4-digit headings like "9026", 6-digit subheadings, 8-digit lines)
+        # and doesn't break when the user says just "yes" without typing any number.
+        if not hs_code and any(kw in query_lower for kw in CONFIRMATION_KEYWORDS):
+            prev_results = state.get("hs_lookup_results") or {}
+            if (prev_results.get("results") and
+                    prev_results.get("clarification_type") in ("confirm_one", "pick_one")):
+                # If user typed a number, try to match it as a prefix against results
+                # (handles "yes 9026 is correct" → 902610, "yes 902610" → 902610, etc.)
+                num_match = re.search(r'\b(\d{4,8})\b', user_query)
+                if num_match:
+                    candidate = num_match.group(1)
+                    for r in prev_results["results"]:
+                        if r["hs_code"].startswith(candidate) or candidate.startswith(r["hs_code"]):
+                            hs_code = r["hs_code"]
+                            hs_confirmed = True
+                            print(f"[Router] Resolved '{candidate}' → confirmed HS {hs_code}")
+                            break
+                # No number typed (e.g. "yes that's correct") — use top result
+                if not hs_code:
+                    hs_code = prev_results["results"][0]["hs_code"]
+                    hs_confirmed = True
+                    print(f"[Router] Confirmation keyword → using pending HS {hs_code}")
 
         # Scan conversation history for a previously confirmed HS code.
         # Skip only when LLM explicitly classified this as a brand-new HS_LOOKUP
@@ -313,7 +349,8 @@ class QueryRouter:
         if not hs_code and not _is_new_classification_request:
             for msg in reversed(state.get("messages", [])[:-1]):
                 content = msg.content if hasattr(msg, "content") else str(msg)
-                m = re.search(r'\b(\d{6,8})\b', content)
+                # Match 6-8 digit codes first; also accept 4-5 digit headings from history.
+                m = re.search(r'\b(\d{6,8})\b', content) or re.search(r'\b(\d{4,5})\b', content)
                 if m:
                     hs_code = self._normalize_hs_code(m.group(1))
                     hs_confirmed = True  # previously confirmed in conversation
@@ -362,12 +399,7 @@ class QueryRouter:
 
         # ── Confirmation keywords: user agrees with the HS code shown ──
         # e.g. "yes", "ok", "correct" after hs_lookup presented candidates.
-        CONFIRMATION_KEYWORDS = [
-            'yes', 'yep', 'yeah', 'yup', 'ok', 'okay', 'sure', 'correct',
-            'confirmed', 'confirm', 'right', 'affirmative', 'proceed',
-            'go ahead', 'that is correct', "that's correct", "that's right",
-            'use that', 'use this', 'that one', 'good', 'perfect', 'great',
-        ]
+        # CONFIRMATION_KEYWORDS is defined earlier (before the heading-resolution block).
         if (hs_code and hs_confirmed and
                 query_type in ("general", "hs_lookup") and
                 not product_name and
