@@ -144,6 +144,12 @@ class HSLookupAgent:
                 f"Task: Return ONLY the HS codes that are genuinely relevant to the user's product. "
                 f"Exclude codes that matched only because of incidental word overlap "
                 f"(e.g. 'electronic cigarettes' is NOT relevant for 'electronic water flow meter'). "
+                f"IMPORTANT: HS nomenclature uses formal technical terms — treat these as synonymous:\n"
+                f"  - 'sensor' / 'detector' / 'transducer' = 'instrument or apparatus for measuring/checking'\n"
+                f"  - 'flow meter' / 'flow sensor' / 'flow gauge' = 'instrument for measuring or checking flow'\n"
+                f"  - 'level sensor' = 'instrument for measuring or checking level'\n"
+                f"  - 'pressure sensor' = 'instrument for measuring or checking pressure'\n"
+                f"So 'water flow sensor' IS relevant to HS codes covering instruments for measuring/checking flow of liquids. "
                 f"Respond with a JSON array of HS code strings only, e.g. [\"90261000\", \"90289000\"]. "
                 f"If none are relevant, return []."
             )

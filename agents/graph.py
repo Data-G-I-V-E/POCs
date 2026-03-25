@@ -59,6 +59,9 @@ class ExportAdvisoryGraph:
         
         # Session-based conversation memory
         self.sessions: Dict[str, List[BaseMessage]] = {}
+        # Pending HS lookup state per session — carries confirm_one/pick_one results
+        # across turns so the router can resolve confirmations without re-searching.
+        self.session_hs_pending: Dict[str, Optional[Dict]] = {}
         
         # Build graph
         self.graph = self._build_graph()
@@ -258,7 +261,9 @@ class ExportAdvisoryGraph:
         # Add user message to session history
         self.sessions[session_id].append(HumanMessage(content=user_query))
         
-        # Initialize state with full conversation history
+        # Initialize state with full conversation history.
+        # Restore any pending HS lookup (confirm_one / pick_one) from prior turn
+        # so the router can resolve the user's confirmation without re-searching.
         initial_state = {
             "messages": list(self.sessions[session_id]),  # Copy full history
             "user_query": user_query,
@@ -270,16 +275,26 @@ class ExportAdvisoryGraph:
             "vector_results": None,
             "policy_results": None,
             "agreement_results": None,
-            "hs_lookup_results": None,
+            "hs_lookup_results": self.session_hs_pending.get(session_id),
             "needs_clarification": None,
             "final_answer": None,
             "sources": [],
             "next_agent": None
         }
-        
+
         # Run graph
         result = self.graph.invoke(initial_state)
-        
+
+        # Persist or clear pending HS lookup for the next turn.
+        # Keep it when we're still waiting for the user to confirm a match;
+        # clear it once a code is resolved or the user starts a new lookup.
+        hs_result = result.get("hs_lookup_results") or {}
+        if (hs_result.get("needs_clarification") and
+                hs_result.get("clarification_type") in ("confirm_one", "pick_one")):
+            self.session_hs_pending[session_id] = hs_result
+        else:
+            self.session_hs_pending.pop(session_id, None)
+
         # Add assistant response to session history
         self.sessions[session_id].append(AIMessage(content=result["final_answer"]))
         
@@ -298,6 +313,7 @@ class ExportAdvisoryGraph:
         """Clear conversation history for a session"""
         if session_id in self.sessions:
             del self.sessions[session_id]
+        self.session_hs_pending.pop(session_id, None)
     
     def get_session_history(self, session_id: str = "default") -> List[Dict[str, str]]:
         """Get conversation history for a session"""
