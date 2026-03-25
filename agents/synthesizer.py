@@ -74,6 +74,7 @@ class AnswerSynthesizer:
                         restricted_info = hs_info.get('restricted_info', {})
                         ste_info        = hs_info.get('ste_info', {})
                         chapter_notes   = hs_info.get('chapter_notes', {})
+                        itc_policy      = hs_info.get('itc_policy', {})
                         policy_summary  = f"Export Allowed: {result['can_export']}\n"
                         if result.get('issues'):
                             policy_summary += f"Issues: {result['issues']}\n"
@@ -81,6 +82,21 @@ class AnswerSynthesizer:
                             policy_summary += f"Warnings: {result['warnings']}\n"
                         if result.get('requirements'):
                             policy_summary += f"Requirements: {result['requirements']}\n"
+                        if itc_policy:
+                            itc_pol_val = (itc_policy.get('itc_policy') or '').strip()
+                            notif_no    = (itc_policy.get('itc_notification') or '').strip()
+                            notif_date  = itc_policy.get('itc_date', '')
+                            overall     = (itc_policy.get('overall_status') or '').strip()
+                            ref_text    = (itc_policy.get('policy_reference_text') or '').strip()
+                            if itc_pol_val:
+                                policy_summary += f"ITC-HS Policy: {itc_pol_val}\n"
+                            if overall:
+                                policy_summary += f"Overall Status: {overall}\n"
+                            if notif_no:
+                                date_str = f" dated {notif_date}" if notif_date else ""
+                                policy_summary += f"ITC Notification: {notif_no}{date_str}\n"
+                            if ref_text:
+                                policy_summary += f"Policy Reference Text: {ref_text}\n"
                     else:
                         is_prohibited = result.get('is_prohibited', False)
                         is_restricted  = result.get('is_restricted', False)
@@ -89,7 +105,25 @@ class AnswerSynthesizer:
                         restricted_info = result.get('restricted_info', {})
                         ste_info        = result.get('ste_info', {})
                         chapter_notes   = result.get('chapter_notes', {})
+                        itc_policy      = result.get('itc_policy', {})
                         policy_summary  = f"Description: {result.get('description', 'N/A')}\n"
+
+                        # ITC-HS notification data
+                        if itc_policy:
+                            itc_pol_val = (itc_policy.get('itc_policy') or '').strip()
+                            notif_no    = (itc_policy.get('itc_notification') or '').strip()
+                            notif_date  = itc_policy.get('itc_date', '')
+                            overall     = (itc_policy.get('overall_status') or '').strip()
+                            ref_text    = (itc_policy.get('policy_reference_text') or '').strip()
+                            if itc_pol_val:
+                                policy_summary += f"ITC-HS Policy: {itc_pol_val}\n"
+                            if overall:
+                                policy_summary += f"Overall Status: {overall}\n"
+                            if notif_no:
+                                date_str = f" dated {notif_date}" if notif_date else ""
+                                policy_summary += f"ITC Notification: {notif_no}{date_str}\n"
+                            if ref_text:
+                                policy_summary += f"Policy Reference Text: {ref_text}\n"
 
                     # Core policy decision — based solely on the three restriction tables
                     # Runs for BOTH can_export and get_hs_code_info paths
