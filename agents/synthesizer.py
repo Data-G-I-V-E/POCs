@@ -30,7 +30,26 @@ class AnswerSynthesizer:
         sql_summary = "NOT CHECKED — SQL agent was not invoked for this query."
         if state.get("sql_results"):
             if state["sql_results"].get("success"):
-                sql_summary = str(state["sql_results"]["result"])
+                result = state["sql_results"]["result"]
+                if isinstance(result, dict) and "columns" in result and "rows" in result:
+                    columns = result["columns"]
+                    rows = result["rows"]
+                    if rows:
+                        # Format as a readable markdown table for the LLM
+                        header = " | ".join(str(c) for c in columns)
+                        separator = " | ".join("---" for _ in columns)
+                        data_rows = "\n".join(
+                            " | ".join(str(v) for v in row)
+                            for row in rows[:50]  # cap at 50 rows to avoid prompt overflow
+                        )
+                        sql_summary = f"Query returned {len(rows)} rows.\n\n| {header} |\n| {separator} |\n"
+                        sql_summary += "\n".join(f"| {' | '.join(str(v) for v in row)} |" for row in rows[:50])
+                        if len(rows) > 50:
+                            sql_summary += f"\n... and {len(rows) - 50} more rows."
+                    else:
+                        sql_summary = "Query executed successfully but returned 0 rows."
+                else:
+                    sql_summary = str(result)
             elif state["sql_results"].get("error"):
                 sql_summary = f"Query failed: {state['sql_results']['error']}"
         
@@ -39,90 +58,129 @@ class AnswerSynthesizer:
             if state["policy_results"].get("success"):
                 result = state["policy_results"]["result"]
                 if isinstance(result, dict):
+                    # Helper: build restriction detail from a info dict using policy_condition column
+                    def _restriction_detail(info: dict) -> str:
+                        cond = (info.get('policy_condition') or '').strip()
+                        desc = (info.get('description') or 'N/A').strip()
+                        return f"{desc} — {cond}" if cond else desc
+
+                    # Resolve the actual flags/info regardless of path (can_export vs get_hs_code_info)
                     if "can_export" in result:
-                        policy_summary = f"Export Allowed: {result['can_export']}\n"
-                        policy_summary += f"Issues: {result.get('issues', [])}\n"
-                        policy_summary += f"Warnings: {result.get('warnings', [])}\n"
-                        policy_summary += f"Requirements: {result.get('requirements', [])}"
-                        # Include HS info details if available
                         hs_info = result.get('hs_info', {})
-                        if hs_info.get('is_prohibited'):
-                            p_info = hs_info.get('prohibited_info', {})
-                            policy_summary += f"\nPROHIBITED: {p_info.get('description', 'N/A')} - {p_info.get('policy_condition', 'Export not allowed')}"
-                        if hs_info.get('is_restricted'):
-                            r_info = hs_info.get('restricted_info', {})
-                            policy_summary += f"\nRESTRICTED: {r_info.get('description', 'N/A')} - {r_info.get('policy_condition', 'Special conditions apply')}"
-                        if hs_info.get('is_ste'):
-                            s_info = hs_info.get('ste_info', {})
-                            ste_entity = s_info.get('authorized_entity')
-                            ste_condition = s_info.get('policy_condition', '')
-                            if ste_entity:
-                                policy_summary += f"\nSTE REQUIRED: Export only via {ste_entity}"
-                            elif ste_condition:
-                                policy_summary += f"\nSTE REQUIRED: {ste_condition}"
-                            else:
-                                policy_summary += "\nSTE REQUIRED: Canalized through designated State Trading Enterprise"
-                        # Include chapter notes if available
-                        ch_notes = hs_info.get('chapter_notes', {})
-                        if ch_notes:
-                            ch_name = ch_notes.get('chapter_name', f"Chapter {ch_notes.get('chapter_code', '?')}")
-                            policy_summary += f"\n\nCHAPTER NOTES ({ch_name}):"
-                            if ch_notes.get('main_notes'):
-                                policy_summary += f"\nMain Notes: {'; '.join(ch_notes['main_notes'][:3])}"
-                            if ch_notes.get('export_licensing'):
-                                policy_summary += f"\nExport Licensing: {'; '.join(ch_notes['export_licensing'][:3])}"
-                            if ch_notes.get('policy_conditions'):
-                                policy_summary += f"\nPolicy Conditions: {'; '.join(ch_notes['policy_conditions'][:3])}"
+                        is_prohibited = hs_info.get('is_prohibited', False)
+                        is_restricted  = hs_info.get('is_restricted', False)
+                        is_ste         = hs_info.get('is_ste', False)
+                        prohibited_info = hs_info.get('prohibited_info', {})
+                        restricted_info = hs_info.get('restricted_info', {})
+                        ste_info        = hs_info.get('ste_info', {})
+                        chapter_notes   = hs_info.get('chapter_notes', {})
+                        itc_policy      = hs_info.get('itc_policy', {})
+                        policy_summary  = f"Export Allowed: {result['can_export']}\n"
+                        if result.get('issues'):
+                            policy_summary += f"Issues: {result['issues']}\n"
+                        if result.get('warnings'):
+                            policy_summary += f"Warnings: {result['warnings']}\n"
+                        if result.get('requirements'):
+                            policy_summary += f"Requirements: {result['requirements']}\n"
+                        if itc_policy:
+                            itc_pol_val = (itc_policy.get('itc_policy') or '').strip()
+                            notif_no    = (itc_policy.get('itc_notification') or '').strip()
+                            notif_date  = itc_policy.get('itc_date', '')
+                            overall     = (itc_policy.get('overall_status') or '').strip()
+                            ref_text    = (itc_policy.get('policy_reference_text') or '').strip()
+                            if itc_pol_val:
+                                policy_summary += f"ITC-HS Policy: {itc_pol_val}\n"
+                            if overall:
+                                policy_summary += f"Overall Status: {overall}\n"
+                            if notif_no:
+                                date_str = f" dated {notif_date}" if notif_date else ""
+                                policy_summary += f"ITC Notification: {notif_no}{date_str}\n"
+                            if ref_text:
+                                policy_summary += f"Policy Reference Text: {ref_text}\n"
                     else:
-                        policy_summary = f"Description: {result.get('description', 'N/A')}\n"
-                        policy_summary += f"Status: Prohibited={result.get('is_prohibited')}, Restricted={result.get('is_restricted')}, STE={result.get('is_ste')}"
-                        if result.get('is_prohibited'):
-                            p_info = result.get('prohibited_info', {})
-                            policy_summary += f"\nPROHIBITED DETAILS: {p_info.get('description', 'N/A')} - {p_info.get('policy_condition', 'Export not allowed')}"
-                        if result.get('is_restricted'):
-                            r_info = result.get('restricted_info', {})
-                            policy_summary += f"\nRESTRICTED DETAILS: {r_info.get('description', 'N/A')} - {r_info.get('policy_condition', 'Special conditions apply')}"
-                        if result.get('is_ste'):
-                            s_info = result.get('ste_info', {})
-                            ste_entity = s_info.get('authorized_entity')
-                            ste_condition = s_info.get('policy_condition', '')
-                            if ste_entity:
-                                policy_summary += f"\nSTE DETAILS: Export only via {ste_entity}"
-                            elif ste_condition:
-                                policy_summary += f"\nSTE DETAILS: {ste_condition}"
+                        is_prohibited = result.get('is_prohibited', False)
+                        is_restricted  = result.get('is_restricted', False)
+                        is_ste         = result.get('is_ste', False)
+                        prohibited_info = result.get('prohibited_info', {})
+                        restricted_info = result.get('restricted_info', {})
+                        ste_info        = result.get('ste_info', {})
+                        chapter_notes   = result.get('chapter_notes', {})
+                        itc_policy      = result.get('itc_policy', {})
+                        policy_summary  = f"Description: {result.get('description', 'N/A')}\n"
+
+                        # ITC-HS notification data
+                        if itc_policy:
+                            itc_pol_val = (itc_policy.get('itc_policy') or '').strip()
+                            notif_no    = (itc_policy.get('itc_notification') or '').strip()
+                            notif_date  = itc_policy.get('itc_date', '')
+                            overall     = (itc_policy.get('overall_status') or '').strip()
+                            ref_text    = (itc_policy.get('policy_reference_text') or '').strip()
+                            if itc_pol_val:
+                                policy_summary += f"ITC-HS Policy: {itc_pol_val}\n"
+                            if overall:
+                                policy_summary += f"Overall Status: {overall}\n"
+                            if notif_no:
+                                date_str = f" dated {notif_date}" if notif_date else ""
+                                policy_summary += f"ITC Notification: {notif_no}{date_str}\n"
+                            if ref_text:
+                                policy_summary += f"Policy Reference Text: {ref_text}\n"
+
+                    # Core policy decision — based solely on the three restriction tables
+                    # Runs for BOTH can_export and get_hs_code_info paths
+                    if not is_prohibited and not is_restricted and not is_ste:
+                        policy_summary += "Export Policy: FREE — not found in prohibited, restricted, or STE lists."
+                    else:
+                        if is_prohibited:
+                            policy_summary += f"PROHIBITED: {_restriction_detail(prohibited_info)}"
+                        if is_restricted:
+                            policy_summary += f"\nRESTRICTED: {_restriction_detail(restricted_info)}"
+                        if is_ste:
+                            entity = ste_info.get('authorized_entity', '')
+                            cond   = (ste_info.get('policy_condition') or '').strip()
+                            if entity:
+                                policy_summary += f"\nSTE: Export only via {entity}"
+                                if cond:
+                                    policy_summary += f" — {cond}"
+                            elif cond:
+                                policy_summary += f"\nSTE: {cond}"
                             else:
-                                policy_summary += "\nSTE DETAILS: Canalized through designated State Trading Enterprise"
-                        # Include chapter notes if available
-                        ch_notes = result.get('chapter_notes', {})
-                        if ch_notes:
-                            ch_name = ch_notes.get('chapter_name', f"Chapter {ch_notes.get('chapter_code', '?')}")
-                            policy_summary += f"\n\nCHAPTER NOTES ({ch_name}):"
-                            if ch_notes.get('main_notes'):
-                                policy_summary += f"\nMain Notes: {'; '.join(ch_notes['main_notes'][:3])}"
-                            if ch_notes.get('export_licensing'):
-                                policy_summary += f"\nExport Licensing: {'; '.join(ch_notes['export_licensing'][:3])}"
-                            if ch_notes.get('policy_conditions'):
-                                policy_summary += f"\nPolicy Conditions: {'; '.join(ch_notes['policy_conditions'][:3])}"
+                                policy_summary += "\nSTE: Canalized through designated State Trading Enterprise"
+
+                    # Chapter notes (if any)
+                    if chapter_notes:
+                        ch_name = chapter_notes.get('chapter_name', f"Chapter {chapter_notes.get('chapter_code', '?')}")
+                        policy_summary += f"\n\nCHAPTER NOTES ({ch_name}):"
+                        if chapter_notes.get('main_notes'):
+                            policy_summary += f"\nMain Notes: {'; '.join(chapter_notes['main_notes'][:3])}"
+                        if chapter_notes.get('export_licensing'):
+                            policy_summary += f"\nExport Licensing: {'; '.join(chapter_notes['export_licensing'][:3])}"
+                        if chapter_notes.get('policy_conditions'):
+                            policy_summary += f"\nPolicy Conditions: {'; '.join(chapter_notes['policy_conditions'][:3])}"
             elif state["policy_results"].get("error"):
                 policy_summary = f"Policy agent ran but encountered an error: {state['policy_results']['error']}"
         
         vector_summary = "NOT CHECKED — Vector agent was not invoked for this query."
         if state.get("vector_results"):
-            docs = state["vector_results"][:4]
+            docs = state["vector_results"][:6]
             parts = []
             for d in docs:
                 meta = d.get('metadata', {})
                 doc_type = d.get('type', 'unknown')
-                
+
                 if doc_type == 'dgft_ftp':
                     chapter = meta.get('chapter', f"Ch-{meta.get('chapter_num', '?')}")
                     section = meta.get('section_full', meta.get('section_id', 'N/A'))
                     label = f"DGFT FTP {chapter} — {section}"
+                    # Use full text for policy sections so the LLM doesn't hallucinate
+                    excerpt_limit = 1500
                 else:
                     label = f"Document: {meta.get('filename', meta.get('agreement', 'N/A'))}"
-                
-                parts.append(f"{label}\nRelevance: {d['score']:.1%}\nExcerpt: {d['text'][:300]}...")
-            
+                    excerpt_limit = 300
+
+                text = d['text']
+                excerpt = text if len(text) <= excerpt_limit else text[:excerpt_limit] + "..."
+                parts.append(f"{label}\nRelevance: {d['score']:.1%}\nContent:\n{excerpt}")
+
             vector_summary = "\n\n".join(parts)
         
         # Build HS lookup summary

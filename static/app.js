@@ -5,8 +5,8 @@
 // === CONFIG ===
 const API_BASE = window.location.origin;
 let currentSessionId = localStorage.getItem('export_session_id') || 'default';
-let tradeChart = null;
-let monthlyChart = null;
+let chartCounter = 0;
+const chartInstances = {};
 
 // === DOM ELEMENTS ===
 const chatMessages = document.getElementById('chat-messages');
@@ -15,10 +15,6 @@ const sendBtn = document.getElementById('send-btn');
 const newSessionBtn = document.getElementById('new-session-btn');
 const clearSessionBtn = document.getElementById('clear-session-btn');
 const sessionDisplay = document.getElementById('session-display');
-const chartContainer = document.getElementById('chart-container');
-const chartInfo = document.getElementById('chart-info');
-const chartDetails = document.getElementById('chart-details');
-const closeVizBtn = document.getElementById('close-viz-btn');
 
 // === INITIALIZATION ===
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,13 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     newSessionBtn.addEventListener('click', handleNewSession);
     clearSessionBtn.addEventListener('click', handleClearSession);
-
-    if (closeVizBtn) {
-        closeVizBtn.addEventListener('click', () => {
-            const vizSection = document.getElementById('viz-section');
-            if (vizSection) vizSection.style.display = 'none';
-        });
-    }
 
     // Setup example query clicks
     document.querySelectorAll('.example-queries li').forEach(li => {
@@ -102,7 +91,7 @@ async function restoreSessionHistory() {
             }
         }
 
-        addSystemMessage(`📝 Restored ${data.message_count} messages from previous session`);
+        addSystemMessage(`Restored ${data.message_count} messages from previous session`);
         scrollToBottom();
     } catch (error) {
         console.log('No previous session to restore:', error.message);
@@ -116,11 +105,14 @@ function addRestoredAssistantMessage(content) {
     const formattedAnswer = formatMessageContent(content);
 
     messageDiv.innerHTML = `
-        <div class="message-header">🤖 Assistant</div>
-        <div class="message-content">
-            ${formattedAnswer}
-            <div class="message-meta">
-                <span class="meta-tag">📂 Restored</span>
+        <div class="assistant-avatar">EA</div>
+        <div class="message-body">
+            <div class="message-header">Assistant</div>
+            <div class="message-content">
+                ${formattedAnswer}
+                <div class="message-meta">
+                    <span class="meta-tag">Session Restore</span>
+                </div>
             </div>
         </div>
     `;
@@ -136,11 +128,11 @@ async function checkHealth() {
         const data = await response.json();
         console.log('Server health:', data);
         if (data.status !== 'healthy') {
-            addSystemMessage('⚠️ Server is not fully initialized. Some features may not work.');
+            addSystemMessage('Server is not fully initialized. Some features may be unavailable.');
         }
     } catch (error) {
         console.error('Health check failed:', error);
-        addSystemMessage('❌ Cannot connect to server. Please check if the backend is running.');
+        addSystemMessage('Cannot connect to server. Please check if the backend is running.');
     }
 }
 
@@ -222,17 +214,15 @@ async function handleSendMessage() {
     try {
         const response = await sendQuery(query);
 
-        // Add assistant response
-        addAssistantMessage(response);
+        // Add assistant response and get the message element back
+        const msgDiv = addAssistantMessage(response);
 
-        // Check if we should show visualization
-        if (shouldShowVisualization(query, response)) {
-            await updateVisualization(response);
-        }
+        // Embed chart directly inside the message bubble
+        await embedChartInMessage(msgDiv, response, query);
 
     } catch (error) {
         console.error('Error sending message:', error);
-        addSystemMessage(`❌ Error: ${error.message}`);
+        addSystemMessage(`Error: ${error.message}`);
     } finally {
         setLoading(false);
     }
@@ -242,7 +232,7 @@ function addUserMessage(content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message message-user';
     messageDiv.innerHTML = `
-        <div class="message-header">👤 You</div>
+        <div class="message-header">You</div>
         <div class="message-content">${escapeHtml(content)}</div>
     `;
     chatMessages.appendChild(messageDiv);
@@ -261,7 +251,7 @@ function addAssistantMessage(response) {
     if (response.sources && response.sources.length > 0) {
         sourcesHtml = `
             <div class="message-sources">
-                <h4>📚 Sources</h4>
+                <h4>Sources</h4>
                 ${response.sources.map(source => `
                     <div class="source-item">
                         <strong>${(source.type || 'info').toUpperCase()}</strong>: ${formatSource(source)}
@@ -280,24 +270,27 @@ function addAssistantMessage(response) {
         metaHtml += `<span class="meta-tag">HS: ${response.hs_code}</span>`;
     }
     if (response.country) {
-        metaHtml += `<span class="meta-tag">🌍 ${response.country.toUpperCase()}</span>`;
+        metaHtml += `<span class="meta-tag">Country: ${response.country.toUpperCase()}</span>`;
     }
     metaHtml += `<span class="meta-tag">${new Date(response.timestamp).toLocaleTimeString()}</span>`;
     metaHtml += '</div>';
 
     messageDiv.innerHTML = `
-        <div class="message-header">
-            🤖 Assistant
-        </div>
-        <div class="message-content">
-            ${formattedAnswer}
-            ${sourcesHtml}
-            ${metaHtml}
+        <div class="assistant-avatar">EA</div>
+        <div class="message-body">
+            <div class="message-header">Assistant</div>
+            <div class="message-content">
+                ${formattedAnswer}
+                ${sourcesHtml}
+                ${metaHtml}
+            </div>
         </div>
     `;
 
     chatMessages.appendChild(messageDiv);
     scrollToBottom();
+
+    return messageDiv;
 }
 
 function addSystemMessage(content) {
@@ -312,15 +305,15 @@ function addSystemMessage(content) {
 
 function getQueryTypeLabel(type) {
     const labels = {
-        'sql': '📊 Data Query',
-        'policy': '📋 Policy Check',
-        'vector': '🔍 Document Search',
-        'general': '💬 General',
-        'combined': '🔗 Multi-Agent',
-        'agreements': '📜 Agreements',
-        'hs_lookup': '🔎 HS Lookup'
+        'sql': 'Data Query',
+        'policy': 'Policy Check',
+        'vector': 'Document Search',
+        'general': 'General',
+        'combined': 'Multi-Agent',
+        'agreements': 'Agreements',
+        'hs_lookup': 'HS Lookup'
     };
-    return labels[type] || `📌 ${type}`;
+    return labels[type] || `Type: ${String(type).replace(/_/g, ' ')}`;
 }
 
 function formatMessageContent(content) {
@@ -350,13 +343,27 @@ function formatSource(source) {
         const country = source.country ? source.country.toUpperCase() : 'ALL';
         return `HS: ${source.hs_code || 'N/A'} → ${country}`;
     } else if (source.type === 'vector_search') {
-        return `${source.store || 'vector'} (${source.num_results || '?'} results)`;
+        const stores = Array.isArray(source.stores) ? source.stores.filter(Boolean) : [];
+        const storeLabel = source.store || (stores.length > 0 ? stores.join(', ') : 'vector');
+
+        let resultCount = source.num_results;
+        if (resultCount === undefined || resultCount === null) {
+            const dgftCount = Number(source.dgft_ftp_results ?? 0);
+            const agreementCount = Number(source.agreement_results ?? 0);
+            if (Number.isFinite(dgftCount) && Number.isFinite(agreementCount)) {
+                resultCount = dgftCount + agreementCount;
+            }
+        }
+
+        const hasValidCount = resultCount !== undefined && resultCount !== null && !Number.isNaN(Number(resultCount));
+        return `${escapeHtml(String(storeLabel))} (${hasValidCount ? resultCount : '?'} results)`;
     } else if (source.type === 'hs_master_lookup') {
         const ambig = source.is_ambiguous ? ' (AMBIGUOUS)' : '';
         return `${source.matches_found || 0} matches for "${source.search_term || '?'}"${ambig}`;
     } else if (source.type === 'trade_agreements') {
         const agreements = source.agreements?.join(', ') || 'N/A';
-        return `${source.num_results || '?'} results from ${agreements}`;
+        const results = source.num_results ?? '?';
+        return `${results} results from ${agreements}`;
     }
     return escapeHtml(JSON.stringify(source));
 }
@@ -372,11 +379,7 @@ function handleNewSession() {
     // Reset chat
     chatMessages.innerHTML = '';
 
-    // Hide viz
-    const vizSection = document.getElementById('viz-section');
-    if (vizSection) vizSection.style.display = 'none';
-
-    addSystemMessage(`✨ Started new session: ${sessionId}`);
+    addSystemMessage(`Started new session: ${sessionId}`);
 }
 
 async function handleClearSession() {
@@ -386,133 +389,257 @@ async function handleClearSession() {
         await clearSession(currentSessionId);
         chatMessages.innerHTML = '';
 
-        const vizSection = document.getElementById('viz-section');
-        if (vizSection) vizSection.style.display = 'none';
-
         // Reset to default session
         currentSessionId = 'default';
         localStorage.setItem('export_session_id', 'default');
         sessionDisplay.textContent = 'Session: default';
 
-        addSystemMessage('🧹 Session cleared successfully');
+        addSystemMessage('Session cleared successfully');
     } catch (error) {
         console.error('Error clearing session:', error);
-        addSystemMessage(`❌ Error clearing session: ${error.message}`);
+        addSystemMessage(`Error clearing session: ${error.message}`);
     }
 }
 
-// === VISUALIZATION ===
+// === INLINE CHART EMBEDDING ===
 
-function shouldShowVisualization(query, response) {
-    const hasSqlResults = response.query_type === 'sql' ||
-        response.query_type === 'combined' ||
-        response.sources?.some(s => s.type === 'sql');
-    const hasHsCode = response.hs_code != null;
-
-    // Keywords suggesting trade data visualization
-    const vizKeywords = [
-        'statistic', 'trade data', 'export value', 'export data',
-        'chart', 'graph', 'trend', 'data', 'monthly', 'quarterly',
-        'export', 'import', 'trade', 'restriction', 'can i export'
-    ];
-    const queryLower = query.toLowerCase();
-    const queryWantsViz = vizKeywords.some(kw => queryLower.includes(kw));
-
-    // Always show viz for combined/sql routes with an HS code
-    if (hasHsCode && hasSqlResults) return true;
-
-    return (hasSqlResults || hasHsCode) && (hasSqlResults || queryWantsViz);
-}
-
-async function updateVisualization(response) {
+async function embedChartInMessage(msgDiv, response, queryText = '') {
     try {
-        const vizSection = document.getElementById('viz-section');
-        const placeholder = document.getElementById('chart-placeholder');
-        const canvas = document.getElementById('trade-chart');
-
-        // Show section, reset state
-        if (vizSection) vizSection.style.display = 'block';
-        if (placeholder) placeholder.style.display = 'none';
-        if (canvas) canvas.style.display = 'block';
-        chartInfo.style.display = 'block';
+        // HS codes that actually have trade data in the database (6-digit)
+        const KNOWN_TRADE_CODES = new Set([
+            '070310','070700','070960',
+            '080310','080410','080450',
+            '610910','610342','610442',
+            '620342','620462','620520',
+            '850440','851310','851762',
+            '902610',
+        ]);
+        const KNOWN_TRADE_CODES_LIST = Array.from(KNOWN_TRADE_CODES).sort();
+        const KNOWN_CHAPTERS = new Set(Array.from(KNOWN_TRADE_CODES).map(code => code.substring(0, 2)));
 
         // --- Collect HS code candidates (6-8 digit) ---
+        // Priority:
+        // 1) explicit HS codes in THIS user query
+        // 2) response.hs_code from backend
+        // 3) strict fallback from answer text (only "HS xxxx" patterns)
+        // This prevents accidental charting from unrelated code lists in model output.
         const hsCandidates = [];
+        const addHsCandidate = (rawCode) => {
+            if (rawCode === undefined || rawCode === null) return;
+            const code = String(rawCode).trim();
+            if (!/^\d{6,8}$/.test(code)) return;
+            if (code.startsWith('202') || code.startsWith('201') || code.startsWith('200')) return;
+            if (!hsCandidates.includes(code)) hsCandidates.push(code);
+        };
 
-        if (response.hs_code) hsCandidates.push(response.hs_code);
-
-        if (response.answer) {
-            // Match standalone 6-8 digit numbers (word boundary prevents partial matches)
-            for (const m of response.answer.matchAll(/\b(\d{6,8})\b/g)) {
-                const code = m[1];
-                if (!code.startsWith('202') && !code.startsWith('201') &&
-                    !code.startsWith('200') && !hsCandidates.includes(code)) {
-                    hsCandidates.push(code);
-                }
+        if (queryText) {
+            for (const m of queryText.matchAll(/\b(\d{6,8})\b/g)) {
+                addHsCandidate(m[1]);
             }
         }
 
-        // --- Collect chapter candidates (2-digit, e.g. "07", "08") ---
-        const chapterCandidates = [];
+        const hasExplicitQueryHs = hsCandidates.length > 0;
 
-        // Derive chapters from every HS code collected
+        if (!hasExplicitQueryHs && response.hs_code) {
+            addHsCandidate(response.hs_code);
+        }
+
+        if (!hasExplicitQueryHs && hsCandidates.length === 0 && response.answer) {
+            for (const m of response.answer.matchAll(/\bHS\s*[:#-]?\s*(\d{6,8})\b/gi)) {
+                addHsCandidate(m[1]);
+            }
+        }
+
+        // For each candidate, also include the 6-digit prefix so prefix-matching works
+        const allHsCandidates = [];
         for (const code of hsCandidates) {
-            if (code.length >= 2) {
-                const ch = code.substring(0, 2);
-                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+            if (!allHsCandidates.includes(code)) allHsCandidates.push(code);
+            if (code.length > 6) {
+                const prefix6 = code.substring(0, 6);
+                if (!allHsCandidates.includes(prefix6)) allHsCandidates.push(prefix6);
             }
         }
 
-        // Also extract chapters from "Chapter X" / "Ch. X" mentions in the answer
-        if (response.answer) {
-            for (const m of response.answer.matchAll(/\b(?:chapter|ch\.?)\s*(\d{1,2})\b/gi)) {
-                const ch = m[1].padStart(2, '0');
-                if (!chapterCandidates.includes(ch)) chapterCandidates.push(ch);
+        // --- Collect chapter candidates — ONLY for codes that exist in the trade DB ---
+        const chapterCandidates = [];
+        const addChapterCandidate = (chapterValue) => {
+            if (chapterValue === undefined || chapterValue === null) return;
+            const chapterText = String(chapterValue).trim();
+            const numeric = chapterText.replace(/\D/g, '');
+            if (!numeric) return;
+            const ch = numeric.padStart(2, '0').substring(0, 2);
+            if (KNOWN_CHAPTERS.has(ch) && !chapterCandidates.includes(ch)) {
+                chapterCandidates.push(ch);
+            }
+        };
+
+        if (response.chapter) addChapterCandidate(response.chapter);
+
+        const chapterContext = `${queryText || ''}\n${response.answer || ''}`;
+        for (const m of chapterContext.matchAll(/\b(?:chapter|ch)\s*[-:]?\s*0?(\d{1,2})\b/gi)) {
+            addChapterCandidate(m[1]);
+        }
+
+        for (const code of allHsCandidates) {
+            const prefix6 = code.substring(0, 6);
+            if (KNOWN_TRADE_CODES.has(prefix6)) {
+                addChapterCandidate(prefix6.substring(0, 2));
             }
         }
 
+        // Nothing to chart — exit silently
         if (hsCandidates.length === 0 && chapterCandidates.length === 0) {
             console.log('No HS code or chapter found for visualization');
-            if (vizSection) vizSection.style.display = 'none';
             return;
         }
 
-        let chartRendered = false;
+        // --- Insert chart card with loading spinner into the message bubble ---
+        const chartId = `chart-${++chartCounter}`;
+        const chartTitleId = `${chartId}-title`;
+        const messageContent = msgDiv.querySelector('.message-content');
 
-        // Helper: render monthly chart + details table
+        const chartCard = document.createElement('div');
+        chartCard.className = 'message-chart-card';
+        chartCard.innerHTML = `
+            <div class="message-chart-header">
+                <div class="chart-header-label">
+                    <span>Data</span>
+                    <span class="chart-title-text" id="${chartTitleId}">Loading trade data…</span>
+                </div>
+                <div class="chart-tabs">
+                    <button class="chart-tab-btn active" data-tab="chart">Chart</button>
+                    <button class="chart-tab-btn" data-tab="table">Table</button>
+                </div>
+            </div>
+            <div class="message-chart-body">
+                <div class="message-chart-loading" id="${chartId}-loading">
+                    <div class="chart-spinner"></div>
+                    <span>Loading chart data…</span>
+                </div>
+                <div id="${chartId}-content" style="display:none;">
+                    <div class="chart-tab-panel" id="${chartId}-panel-chart">
+                        <div class="message-chart-canvas-wrap">
+                            <canvas id="${chartId}"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-tab-panel" id="${chartId}-panel-table" style="display:none;">
+                        <div id="${chartId}-table"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Tab switching
+        chartCard.querySelectorAll('.chart-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                chartCard.querySelectorAll('.chart-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const tab = btn.dataset.tab;
+                document.getElementById(`${chartId}-panel-chart`).style.display = tab === 'chart' ? 'block' : 'none';
+                document.getElementById(`${chartId}-panel-table`).style.display = tab === 'table' ? 'block' : 'none';
+            });
+        });
+
+        // Insert before the sources section if present, otherwise append
+        const sourcesEl = messageContent.querySelector('.message-sources');
+        if (sourcesEl) {
+            messageContent.insertBefore(chartCard, sourcesEl);
+        } else {
+            messageContent.appendChild(chartCard);
+        }
+
+        scrollToBottom();
+
+        const loadingEl = document.getElementById(`${chartId}-loading`);
+        const contentEl = document.getElementById(`${chartId}-content`);
+        const tableEl = document.getElementById(`${chartId}-table`);
+
+        let chartRendered = false;
+        let guardMessage = null;
+
+        function captureGuardMessage(message) {
+            if (!message) return;
+            if (!guardMessage) guardMessage = message;
+        }
+
+        // Helper: render monthly line chart + table
         function renderMonthly(monthlyData, label) {
             chartRendered = true;
-            chartDetails.innerHTML = `
-                <p><strong>HS Code / Chapter:</strong> ${label}</p>
-                <p style="margin-bottom:0.5rem;"><strong>Monthly Export Trend (2024):</strong></p>
-                ${createMonthlyDataTable(monthlyData, label)}
-                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                    Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
-                </p>
-            `;
-            // Delay chart creation so the browser can lay out the container first
-            setTimeout(() => createLineChart(monthlyData, label), 50);
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = `Monthly Exports — HS ${label}`;
+            if (tableEl) {
+                tableEl.innerHTML = `
+                    <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
+                        <strong>Monthly Export Trend (2024-25 vs 2023-24)</strong> — ${label}
+                    </p>
+                    ${createMonthlyDataTable(monthlyData)}
+                    <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
+                        Last Updated: ${new Date(monthlyData.timestamp).toLocaleString()}
+                    </p>
+                `;
+            }
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            setTimeout(() => createLineChart(monthlyData, label, chartId), 50);
         }
 
-        // Helper: render annual bar chart + details table
+        // Helper: render annual bar chart + table
         function renderAnnual(data, label) {
             chartRendered = true;
-            chartDetails.innerHTML = `
-                <p><strong>HS Code / Chapter:</strong> ${label}</p>
-                <p style="margin-bottom:0.5rem;"><strong>Export Data by Country (Annual):</strong></p>
-                ${createDataTable(data.data, label)}
-                <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-                    Last Updated: ${new Date(data.timestamp).toLocaleString()}
-                </p>
-            `;
-            setTimeout(() => createBarChart(data.data, label), 50);
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = `Annual Exports — HS ${label}`;
+            if (tableEl) {
+                tableEl.innerHTML = `
+                    <p style="margin-bottom:0.4rem;font-size:0.82rem;color:var(--text-secondary);">
+                        <strong>Export Data by Country (2023-24 vs 2024-25)</strong> — ${label}
+                    </p>
+                    ${createDataTable(data.data, data.data_by_year, data.years, data.countries)}
+                    <p style="margin-top:0.4rem; font-size:0.75rem; color:var(--text-muted);">
+                        Last Updated: ${new Date(data.timestamp).toLocaleString()}
+                    </p>
+                `;
+            }
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            setTimeout(() => createBarChart(data.data, label, chartId, data.data_by_year, data.years, data.countries), 50);
         }
 
-        // --- Pass 1: Try exact HS codes ---
-        for (const hsCode of hsCandidates) {
+        // Helper: render guard message in chart card
+        function renderGuardNotice(message) {
+            const titleEl = document.getElementById(chartTitleId);
+            if (titleEl) titleEl.textContent = 'Trade Data Guard';
+
+            const safeMessage = escapeHtml(message || 'Trade data request is blocked by HS code guard rules.');
+            const noticeHtml = `
+                <div style="padding:0.85rem;border:1px dashed var(--border-color);border-radius:10px;font-size:0.84rem;color:var(--text-secondary);line-height:1.45;">
+                    ${safeMessage}
+                </div>
+            `;
+
+            const chartPanel = document.getElementById(`${chartId}-panel-chart`);
+            if (chartPanel) chartPanel.innerHTML = noticeHtml;
+            if (tableEl) tableEl.innerHTML = noticeHtml;
+
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+        }
+
+        // --- Pass 1: Try HS codes — only those known to have data ---
+        for (const hsCode of allHsCandidates) {
             if (chartRendered) break;
+            if (!KNOWN_TRADE_CODES.has(hsCode.substring(0, 6))) {
+                captureGuardMessage(
+                    `Trade data is not available for HS ${hsCode.substring(0, 6)}. ` +
+                    `Supported HS-6 codes are: ${KNOWN_TRADE_CODES_LIST.join(', ')}.`
+                );
+                console.log(`HS ${hsCode}: not in trade dataset, skipping`);
+                continue;
+            }
             try {
                 const d = await getMonthlyTradeData(hsCode, null);
+                if (d.guarded && d.message) {
+                    captureGuardMessage(d.message);
+                }
                 if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
                     renderMonthly(d, hsCode); break;
                 }
@@ -520,18 +647,24 @@ async function updateVisualization(response) {
 
             try {
                 const d = await getTradeData(hsCode, null);
+                if (d.guarded && d.message) {
+                    captureGuardMessage(d.message);
+                }
                 if (d.data?.length > 0) {
                     renderAnnual(d, hsCode); break;
                 }
             } catch (e) { console.log(`Annual HS ${hsCode}: ${e.message}`); }
         }
 
-        // --- Pass 2: Try chapter-level queries (uses proper 'chapter' param) ---
+        // --- Pass 2: Try chapter-level queries ---
         if (!chartRendered) {
             for (const ch of chapterCandidates) {
                 if (chartRendered) break;
                 try {
                     const d = await getMonthlyTradeData(null, ch);
+                    if (d.guarded && d.message) {
+                        captureGuardMessage(d.message);
+                    }
                     if (d.months?.length > 0 && Object.keys(d.monthly_data).length > 0) {
                         renderMonthly(d, `Chapter ${ch}`); break;
                     }
@@ -539,6 +672,9 @@ async function updateVisualization(response) {
 
                 try {
                     const d = await getTradeData(null, ch);
+                    if (d.guarded && d.message) {
+                        captureGuardMessage(d.message);
+                    }
                     if (d.data?.length > 0) {
                         renderAnnual(d, `Chapter ${ch}`); break;
                     }
@@ -546,36 +682,80 @@ async function updateVisualization(response) {
             }
         }
 
-        // --- No data found ---
+        // --- No data found: remove the chart card entirely ---
         if (!chartRendered) {
-            if (canvas) canvas.style.display = 'none';
-            if (placeholder) {
-                placeholder.style.display = 'flex';
-                const tried = [
-                    ...hsCandidates.map(c => `HS ${c}`),
-                    ...chapterCandidates.map(c => `Ch.${c}`)
-                ];
-                placeholder.innerHTML = `
-                    <p style="font-size:1.1rem;">📊 No chart data available</p>
-                    <p class="chart-hint">
-                        Tried: ${tried.slice(0, 6).join(', ')}${tried.length > 6 ? '...' : ''}<br>
-                        Charts are available for the 31 focus HS codes tracked in the system.<br>
-                        Detailed statistics are shown in the answer above.
-                    </p>
-                `;
+            if (guardMessage) {
+                renderGuardNotice(guardMessage);
+            } else {
+                chartCard.remove();
             }
-            chartDetails.innerHTML = '';
-            chartInfo.style.display = 'none';
         }
 
-        vizSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        scrollToBottom();
 
     } catch (error) {
-        console.error('Error updating visualization:', error);
+        console.error('Error embedding chart in message:', error);
     }
 }
 
-function createDataTable(data, hsCode) {
+function createDataTable(data, dataByYear, years, countries) {
+    if (dataByYear && years && years.length > 0) {
+        // Multi-year comparison table
+        const allCountries = countries && countries.length > 0
+            ? countries
+            : [...new Set(Object.values(dataByYear).flat().map(d => d.country))];
+        if (allCountries.length === 0) return '<p>No data available</p>';
+
+        let html = `<table class="data-table"><thead><tr><th>Country</th>`;
+        years.forEach(y => { html += `<th style="text-align:right;">${y} (₹ Cr)</th>`; });
+        if (years.length === 2) html += `<th style="text-align:right;">YoY Growth</th>`;
+        html += `</tr></thead><tbody>`;
+
+        allCountries.forEach(country => {
+            const vals = years.map(y => {
+                const entry = (dataByYear[y] || []).find(d => d.country === country);
+                return entry ? entry.value : 0;
+            });
+            html += `<tr><td style="font-weight:500;">${country}</td>`;
+            vals.forEach(v => {
+                html += `<td style="text-align:right;">₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+            });
+            if (years.length === 2) {
+                if (vals[0] > 0) {
+                    const growth = ((vals[1] - vals[0]) / vals[0] * 100).toFixed(1);
+                    const color = growth >= 0 ? '#10b981' : '#ef4444';
+                    const arrow = growth >= 0 ? '▲' : '▼';
+                    html += `<td style="text-align:right;color:${color};">${arrow}${Math.abs(growth)}%</td>`;
+                } else {
+                    html += `<td style="text-align:right;">—</td>`;
+                }
+            }
+            html += `</tr>`;
+        });
+
+        // Totals row
+        html += `<tr style="font-weight:600;border-top:2px solid var(--border);"><td>Total</td>`;
+        const totals = years.map(y =>
+            (dataByYear[y] || []).reduce((s, d) => s + d.value, 0)
+        );
+        totals.forEach(t => {
+            html += `<td style="text-align:right;">₹${t.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        });
+        if (years.length === 2) {
+            if (totals[0] > 0) {
+                const growth = ((totals[1] - totals[0]) / totals[0] * 100).toFixed(1);
+                const color = growth >= 0 ? '#10b981' : '#ef4444';
+                const arrow = growth >= 0 ? '▲' : '▼';
+                html += `<td style="text-align:right;color:${color};">${arrow}${Math.abs(growth)}%</td>`;
+            } else {
+                html += `<td>—</td>`;
+            }
+        }
+        html += `</tr></tbody></table>`;
+        return html;
+    }
+
+    // Fallback: single-year table
     if (!data || data.length === 0) return '<p>No data available</p>';
 
     const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -604,15 +784,20 @@ function createDataTable(data, hsCode) {
     return html;
 }
 
-function createMonthlyDataTable(monthlyData, hsCode) {
+function createMonthlyDataTable(monthlyData) {
     const countries = Object.keys(monthlyData.monthly_data);
     const months = monthlyData.months;
     if (countries.length === 0 || months.length === 0) return '<p>No monthly data available</p>';
 
-    let html = `<table class="data-table"><thead><tr>
-        <th>Month</th>`;
+    // Check if any entry has prev_year_value
+    const hasPrevYear = countries.some(c =>
+        (monthlyData.monthly_data[c] || []).some(m => m.prev_year_value > 0)
+    );
+
+    let html = `<table class="data-table"><thead><tr><th>Month</th>`;
     countries.forEach(c => {
-        html += `<th style="text-align:right;">${c} (₹ Cr)</th>`;
+        html += `<th style="text-align:right;">${c} 2024-25 (₹ Cr)</th>`;
+        if (hasPrevYear) html += `<th style="text-align:right;color:var(--text-secondary);">${c} 2023-24 (₹ Cr)</th>`;
     });
     html += `</tr></thead><tbody>`;
 
@@ -621,6 +806,7 @@ function createMonthlyDataTable(monthlyData, hsCode) {
         countries.forEach(country => {
             const entry = monthlyData.monthly_data[country].find(m => m.month_name === monthName);
             const val = entry ? entry.value : 0;
+            const prevVal = entry && entry.prev_year_value !== undefined ? entry.prev_year_value : 0;
             const growth = entry && entry.growth_pct !== null ? entry.growth_pct : null;
             let growthBadge = '';
             if (growth !== null) {
@@ -629,6 +815,9 @@ function createMonthlyDataTable(monthlyData, hsCode) {
                 growthBadge = ` <span style="font-size:0.75rem;color:${color};">${arrow}${Math.abs(growth).toFixed(1)}%</span>`;
             }
             html += `<td style="text-align:right;">₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${growthBadge}</td>`;
+            if (hasPrevYear) {
+                html += `<td style="text-align:right;color:var(--text-secondary);">₹${prevVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+            }
         });
         html += `</tr>`;
     });
@@ -637,43 +826,74 @@ function createMonthlyDataTable(monthlyData, hsCode) {
     html += `<tr style="font-weight:600;border-top:2px solid var(--border);"><td>Total</td>`;
     countries.forEach(country => {
         const total = monthlyData.monthly_data[country].reduce((s, m) => s + m.value, 0);
+        const prevTotal = monthlyData.monthly_data[country].reduce((s, m) => s + (m.prev_year_value || 0), 0);
         html += `<td style="text-align:right;">₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        if (hasPrevYear) {
+            html += `<td style="text-align:right;color:var(--text-secondary);">₹${prevTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`;
+        }
     });
     html += `</tr></tbody></table>`;
 
     return html;
 }
 
-function createBarChart(data, hsCode) {
-    const canvas = document.getElementById('trade-chart');
+function createBarChart(data, label, canvasId, dataByYear, years, countries) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    if (tradeChart) tradeChart.destroy();
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
-    // Dark theme chart colors
-    const chartColors = [
-        { bg: 'rgba(99, 102, 241, 0.7)', border: 'rgba(99, 102, 241, 1)' },
-        { bg: 'rgba(16, 185, 129, 0.7)', border: 'rgba(16, 185, 129, 1)' },
-        { bg: 'rgba(245, 158, 11, 0.7)', border: 'rgba(245, 158, 11, 1)' },
-        { bg: 'rgba(239, 68, 68, 0.7)', border: 'rgba(239, 68, 68, 1)' },
-        { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' },
+    // Dark theme chart colors — one per year
+    const yearColors = [
+        { bg: 'rgba(99, 102, 241, 0.75)', border: 'rgba(99, 102, 241, 1)' },
+        { bg: 'rgba(16, 185, 129, 0.75)', border: 'rgba(16, 185, 129, 1)' },
+        { bg: 'rgba(245, 158, 11, 0.75)', border: 'rgba(245, 158, 11, 1)' },
     ];
 
-    tradeChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.map(d => d.country),
-            datasets: [{
-                label: 'Export Value (Crore ₹)',
-                data: data.map(d => d.value),
-                backgroundColor: data.map((_, i) => chartColors[i % chartColors.length].bg),
-                borderColor: data.map((_, i) => chartColors[i % chartColors.length].border),
+    let chartLabels, datasets;
+
+    if (dataByYear && years && years.length > 0) {
+        // Grouped bar chart: X = country, datasets = one per year
+        chartLabels = countries && countries.length > 0
+            ? countries
+            : [...new Set(Object.values(dataByYear).flat().map(d => d.country))];
+        datasets = years.map((year, i) => {
+            const color = yearColors[i % yearColors.length];
+            const yearData = dataByYear[year] || [];
+            return {
+                label: year,
+                data: chartLabels.map(country => {
+                    const entry = yearData.find(d => d.country === country);
+                    return entry ? entry.value : 0;
+                }),
+                backgroundColor: color.bg,
+                borderColor: color.border,
                 borderWidth: 2,
                 borderRadius: 6,
                 borderSkipped: false,
-            }]
+            };
+        });
+    } else {
+        // Fallback: single-year flat data
+        chartLabels = data.map(d => d.country);
+        datasets = [{
+            label: 'Export Value (Crore ₹)',
+            data: data.map(d => d.value),
+            backgroundColor: data.map((_, i) => yearColors[i % yearColors.length].bg),
+            borderColor: data.map((_, i) => yearColors[i % yearColors.length].border),
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+        }];
+    }
+
+    chartInstances[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartLabels,
+            datasets
         },
         options: {
             responsive: true,
@@ -681,7 +901,7 @@ function createBarChart(data, hsCode) {
             plugins: {
                 title: {
                     display: true,
-                    text: `Export Statistics — HS ${hsCode}`,
+                    text: `Export Statistics — HS ${label}`,
                     color: '#e8eaed',
                     font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
                     padding: { bottom: 16 }
@@ -749,34 +969,35 @@ function createBarChart(data, hsCode) {
     });
 }
 
-function createLineChart(monthlyData, hsCode) {
-    const canvas = document.getElementById('trade-chart');
+function createLineChart(monthlyData, label, canvasId) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    if (tradeChart) tradeChart.destroy();
-    if (monthlyChart) monthlyChart.destroy();
+    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
 
     const chartColors = [
-        { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)' },
-        { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 1)' },
-        { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 1)' },
+        { bg: 'rgba(99, 102, 241, 0.15)', border: 'rgba(99, 102, 241, 1)', prevBorder: 'rgba(99, 102, 241, 0.4)' },
+        { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 1)', prevBorder: 'rgba(16, 185, 129, 0.4)' },
+        { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 1)', prevBorder: 'rgba(245, 158, 11, 0.4)' },
     ];
 
     const countries = Object.keys(monthlyData.monthly_data);
     const months = monthlyData.months;
 
-    const datasets = countries.map((country, i) => {
+    const datasets = [];
+    countries.forEach((country, i) => {
         const color = chartColors[i % chartColors.length];
-        const values = months.map(mn => {
+
+        // Current year (2024-25) — solid line
+        const currentValues = months.map(mn => {
             const entry = monthlyData.monthly_data[country].find(m => m.month_name === mn);
             return entry ? entry.value : 0;
         });
-
-        return {
-            label: country,
-            data: values,
+        datasets.push({
+            label: `${country} (2024-25)`,
+            data: currentValues,
             borderColor: color.border,
             backgroundColor: color.bg,
             fill: true,
@@ -787,10 +1008,33 @@ function createLineChart(monthlyData, hsCode) {
             pointBackgroundColor: color.border,
             pointBorderColor: '#0f1117',
             pointBorderWidth: 2,
-        };
+        });
+
+        // Previous year (2023-24) — dashed line
+        const prevValues = months.map(mn => {
+            const entry = monthlyData.monthly_data[country].find(m => m.month_name === mn);
+            return entry && entry.prev_year_value !== undefined ? entry.prev_year_value : 0;
+        });
+        if (prevValues.some(v => v > 0)) {
+            datasets.push({
+                label: `${country} (2023-24)`,
+                data: prevValues,
+                borderColor: color.prevBorder,
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.35,
+                borderWidth: 1.8,
+                borderDash: [6, 4],
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                pointBackgroundColor: color.prevBorder,
+                pointBorderColor: '#0f1117',
+                pointBorderWidth: 1,
+            });
+        }
     });
 
-    monthlyChart = new Chart(ctx, {
+    chartInstances[canvasId] = new Chart(ctx, {
         type: 'line',
         data: { labels: months, datasets },
         options: {
@@ -803,7 +1047,7 @@ function createLineChart(monthlyData, hsCode) {
             plugins: {
                 title: {
                     display: true,
-                    text: `Monthly Export Trend — HS ${hsCode} (2024)`,
+                    text: `Monthly Export Trend — HS ${label} (2024-25 vs 2023-24)`,
                     color: '#e8eaed',
                     font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
                     padding: { bottom: 16 }
@@ -856,7 +1100,7 @@ function createLineChart(monthlyData, hsCode) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Month (2024)',
+                        text: 'Month',
                         color: '#9aa0b0',
                         font: { family: 'Inter, sans-serif', size: 12 }
                     },
@@ -871,9 +1115,6 @@ function createLineChart(monthlyData, hsCode) {
             }
         }
     });
-
-    // Keep reference so we can destroy it later
-    tradeChart = monthlyChart;
 }
 
 // === UTILITIES ===

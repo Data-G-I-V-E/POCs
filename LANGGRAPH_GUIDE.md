@@ -1,598 +1,462 @@
-# 🤖 LangGraph Multi-Agent Export Advisory System
+# LangGraph System Guide
 
-## Overview
-
-A sophisticated multi-agent system using **LangGraph** that intelligently routes queries to specialized agents, maintains **conversation memory** per session, and provides comprehensive answers with proper source attribution.
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      USER QUERY                              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   QUERY ROUTER                               │
-│  Analyzes query and determines appropriate agent(s)         │
-│  - Extracts HS code, country, product name (LLM-based)     │
-│  - Routes to: SQL/POLICY/AGREEMENTS/VECTOR/                 │
-│              HS_LOOKUP/COMBINED/GENERAL                     │
-└───┬───────┬───────┬─────────┬─────────┬──────┬─────────────┘
-    │       │       │         │         │      │
-    ▼       ▼       ▼         ▼         ▼      ▼
-┌──────┐┌──────┐┌──────────┐┌──────┐┌────────┐┌────────────────────┐
-│ SQL  ││POLICY││AGREEMENTS││VECTOR││HS      ││  COMBINED AGENT    │
-│AGENT ││AGENT ││AGENT     ││AGENT ││LOOKUP  ││                    │
-│      ││      ││          ││      ││AGENT   ││ 1. Runs SQL Agent  │
-│Text→ ││Check:││Search:   ││Search││        ││ 2. Runs Policy     │
-│SQL   ││Proh. ││FTA text  ││DGFT  ││Search  ││    Agent           │
-│Query ││Rest. ││Rules of  ││Policy││13,407  ││ 3. Runs Agreements │
-│      ││STE   ││Origin    ││      ││HS codes││    Agent (if       │
-│      ││      ││Tariffs   ││      ││exact/  ││    country found)  │
-│      ││      ││Cross-refs││      ││FTS/    ││ 4. Feeds all to    │
-│      ││      ││          ││      ││fuzzy   ││    synthesizer     │
-└──┬───┘└──┬───┘└────┬─────┘└──┬───┘└───┬────┘└────────┬───────────┘
-   │       │         │         │        │              │
-   └───────┴─────────┴────┬────┴────────┴──────────────┘
-                           │
-                           ▼
-           ┌───────────────────────────────┐
-           │    ANSWER SYNTHESIZER         │
-           │  Combines all agent results   │
-           │  Generates markdown answer    │
-           │  with source & article cites  │
-           └───────────────┬───────────────┘
-                           │
-                           ▼
-           ┌───────────────────────────────┐
-           │    FINAL RESPONSE             │
-           │  - Direct Answer              │
-           │  - Supporting Details         │
-           │  - Source Citations           │
-           │  - Agreement Article Refs     │
-           └───────────────────────────────┘
-```
-
-## 🎯 Agents
-
-### 1. **Query Router** (`agents/router.py`)
-- Analyzes user intent
-- Extracts entities (HS codes, countries)
-- **LLM-based product extraction**: The LLM outputs `ROUTE_TYPE | PRODUCT: <name>` — no brittle phrase stripping. "i want to export cows to uae show past data" → extracts "cows" automatically
-- **DB lookup**: Uses extracted product name to search **`hs_master_8_digit` (13,407 codes)** via full-text search, then falls back to `prohibited_items`, `restricted_items`, `ste_items`, `hs_codes`, `itc_hs_products`
-- **Ambiguity handling**: When multiple HS codes match (e.g., "plants" → 10+ results), all matches are stored in state so the synthesizer can present them to the user
-- **Auto-upgrade**: When HS code + country detected, upgrades route from `policy`/`sql` to `combined` so ALL agents fire
-- Routes to appropriate specialist agents
-- Powered by Anthropic Claude Sonnet 4
-- Prompt defined in `prompts/router_prompt.py`
-
-### 2. **SQL Agent** (`agents/sql_agent.py`) — Text-to-SQL
-Handles queries requiring database operations:
-- Export statistics and trade data (annual + monthly)
-- Monthly trends, seasonal patterns, quarter comparisons
-- Aggregations and summaries
-- Historical trends
-- Chapter-level analysis
-
-**Example Queries:**
-- "What is the total export value for chapter 07?"
-- "Show export statistics for HS 610910 to UAE"
-- "How many HS codes are restricted?"
-- "What were the monthly exports of HS 610910 to UAE in 2024?"
-- "Which month had the highest exports for chapter 85 to Australia?"
-- "Show quarterly export trend for textiles to UK"
-
-**Data Sources:**
-- Unified SQL views (`v_export_policy_unified`, `v_monthly_exports`)
-- Schema context from `prompts/sql_schema.py`
-- SQL generation prompt from `prompts/sql_prompt.py`
-- `export_statistics` (annual data)
-- `monthly_export_statistics` (monthly 2024 data)
-- `v_monthly_exports` (monthly with names)
-- `v_quarterly_exports` (quarterly aggregations)
-- `mv_hs_export_summary`
-- Database functions
-
-### 3. **Policy Agent** (`agents/policy_agent.py`)
-Checks export feasibility and restrictions:
-- Prohibited items
-- Restricted items
-- STE requirements
-- ITC notifications
-- Compliance checks
-
-**Example Queries:**
-- "Can I export HS 070310 to Australia?"
-- "Is HS 850440 restricted?"
-- "What are the requirements for exporting onions?"
-
-**Data Sources:**
-- `v_export_policy_unified`
-- `prohibited_items`
-- `restricted_items`
-- `ste_items`
-- `itc_chapter_notes` (main notes, policy conditions, export licensing)
-- `itc_chapters` (chapter names)
-
-### 4. **Vector Agent** (`agents/vector_agent.py`)
-Semantic search across **both** DGFT FTP policy chapters and trade agreements:
-- **DGFT FTP**: 11 chapters (Ch-1 to Ch-11), 413 section-aware chunks, 264 sections
-- **Trade Agreements**: 2,524 article-aware chunks from 3 FTAs (fallback to agreements store)
-- **Direct section lookup**: When query mentions a section like "7.02", fetches it directly via section index
-- **Deduplication**: Avoids duplicate results between direct lookup and vector search
-
-**Example Queries:**
-- "Categories of supply under DGFT FTP" → finds Section 7.02 in Chapter 7
-- "Deemed exports" → finds relevant DGFT FTP sections
-- "Advance authorization" → finds Chapter 4 content  
-- "DGFT policy for agricultural exports"
-
-**Data Sources:**
-- `dgft_ftp_rag_store/` (FAISS + ChromaDB) via `DGFTFTPRetriever`
-- `agreements_rag_store/` (FAISS + ChromaDB) via `AgreementsRetriever`
-
-### 5. **Agreements Agent** (`agents/agreements_agent.py`) (NEW)
-Searches trade agreement PDFs with article-level precision and cross-reference resolution:
-- Rules of origin (Chapter 4 of most FTAs)
-- Tariff commitments and duty elimination schedules
-- Customs procedures and facilitation
-- SPS/TBT measures
-- Dispute settlement provisions
-- Certificate of origin requirements
-
-**Key Features:**
-- **Article-aware chunking**: Returns whole Article sections, not arbitrary text windows
-- **Cross-reference resolution**: If Article 4.3 mentions Article 4.6, both are returned
-- **Direct article lookup**: When query contains "Article X.Y", fetches it directly via article index (bypasses vector search for precision)
-- **Country filtering**: Search only Australia, UAE, or UK agreements
-- **OCR cleanup**: Fixes 15+ common scanning errors from UAE PDFs
-
-**Example Queries:**
-- "What are the rules of origin for exporting textiles to Australia?"
-- "What tariff benefits does the India-UAE CEPA provide?"
-- "What does Article 4.3 of the India-Australia agreement say?" 
-- "Customs procedures under the India-UK FTA"
-- "Certificate of origin requirements for UK exports"
-
-**Data Sources:**
-- FAISS index (`agreements_rag_store/agreements.index`)
-- ChromaDB (`agreements_rag_store/agreements_chroma/`)
-- Article cross-reference index (`agreements_rag_store/article_index.json`)
-
-**Covers 3 Agreements:**
-- India-Australia ECTA (AI-ECTA): 577 chunks, 190 articles
-- India-UAE CEPA: 751 chunks, 249 articles
-- India-UK CETA: 1,196 chunks, 449 articles
-
-### 6. **Combined Agent** (`agents/graph.py` → `_combined_execute` method)
-Handles complex queries requiring BOTH data aggregation AND policy checks AND agreement lookup AND DGFT FTP context:
-- Runs **SQL Agent** first for data/statistics
-- Then runs **Policy Agent** for restriction/STE/prohibited checks
-- Then runs **Agreements Agent** if a country is specified in the query
-- Then runs **DGFT FTP vector search** for Foreign Trade Policy context
-- Queries `prohibited_items`, `restricted_items`, `ste_items`, `itc_chapter_policies`
-- Extracts chapter numbers from the query and does batch lookups
-
-**Auto-triggered when:**
-- Query has **HS code + country** (upgraded from `policy` or `sql`)
-- Query has **HS code** only (upgraded from `policy`)
-- LLM classifies as `combined` explicitly
-
-**Example Queries:**
-- "Can I export vegetables to Australia and what are the tariff benefits?"
-- "Show export values AND restrictions AND agreement provisions for chapter 07"
-- "Iron ore Fines export policies to UAE" (← auto-upgraded from policy)
-
-**Why Combined?**
-- Single-agent queries (SQL or Policy alone) miss data from the others
-- SQL Agent can generate aggregate queries but doesn’t check restriction tables deeply
-- Policy Agent checks restrictions but has no access to export statistics
-- Agreements Agent searches FTA text but has no export statistics or policy data
-- DGFT FTP provides FTP policy context not available in the DB
-- Combined runs all four, giving the synthesizer a complete picture
-
-### 7. **Answer Synthesizer** (`agents/synthesizer.py`)
-- Combines results from all agents
-- Generates coherent response with markdown formatting
-- Cites specific trade agreement articles (e.g., "Article 4.3 of AI-ECTA")
-- Provides source citations
-- Uses conversation history for context
-- Prompt defined in `prompts/synthesizer_prompt.py`
-
-## 🚀 Usage
-
-### Installation
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# OR install specific packages
-pip install langgraph langchain-anthropic langchain-community
-```
-
-### Setup
-
-1. Ensure `.env` file has `ANTHROPIC_API_KEY`:
-```bash
-ANTHROPIC_API_KEY=your_api_key_here
-```
-
-2. Database must be set up (run `database_unification.py` first)
-
-### Basic Usage
-
-```python
-from agents import ExportAdvisoryGraph
-
-# Initialize
-graph = ExportAdvisoryGraph()
-
-# Ask a question
-result = graph.query("Can I export HS 070310 to Australia?")
-
-# Print formatted response
-print(graph.format_response(result))
-```
-
-### Interactive Mode
-
-```bash
-python -m agents.graph
-```
-
-### Quick Test
-
-```bash
-python test_agreement_queries.py --quick
-```
-
-## 📦 Code Structure
-
-The system is organized into two packages:
-
--   **`agents/`** — One file per agent, plus `state.py` (shared `AgentState`) and `graph.py` (orchestrator)
--   **`prompts/`** — All LLM prompts as editable Python string constants
-
-Import from either path:
-```python
-from agents import ExportAdvisoryGraph          # Preferred
-from langgraph_export_agent import ExportAdvisoryGraph  # Backward compat
-```
-
-## 📊 Example Queries
-
-### SQL Agent Queries
-
-```python
-# Aggregation
-graph.query("What is the total export value for chapter 07?")
-
-# Statistics
-graph.query("Show export statistics for HS 610910")
-
-# Comparison
-graph.query("Compare exports of textiles to all three countries")
-
-# Trends
-graph.query("What's the growth rate for HS 070310 exports?")
-
-# Monthly data
-graph.query("What were the monthly exports of HS 610910 to UAE in 2024?")
-
-# Best month
-graph.query("Which month had the highest exports for chapter 85 to Australia?")
-
-# Quarterly
-graph.query("Show quarterly export trend for textiles to UK in 2024")
-```
-
-### Policy Agent Queries
-
-```python
-# Export check
-graph.query("Can I export HS 070310 to Australia?")
-
-# Restrictions
-graph.query("Is HS 850440 prohibited or restricted?")
-
-# Requirements
-graph.query("What are STE requirements for chapter 26?")
-
-# Status check
-graph.query("Check export status for HS 620342")
-```
-
-### Vector Agent Queries
-
-```python
-# Agreements
-graph.query("What are the tariff rates in the Australia agreement?")
-
-# Rules
-graph.query("Rules of origin requirements for UAE")
-
-# Certificates
-graph.query("What certificates are needed for UK exports?")
-
-# Policies
-graph.query("DGFT policy for agricultural exports")
-```
-
-## 📝 Response Format
-
-Each response includes:
-
-```python
-{
-    "answer": "Comprehensive answer...",
-    "sources": [
-        {
-            "type": "sql",
-            "query": "SELECT ...",
-            "database": "PPL-AI",
-            "timestamp": "2026-02-07T..."
-        },
-        {
-            "type": "policy_check",
-            "hs_code": "070310",
-            "country": "australia",
-            "tables": ["v_export_policy_unified", ...],
-            "timestamp": "2026-02-07T..."
-        }
-    ],
-    "query_type": "policy",
-    "hs_code": "070310",
-    "country": "australia",
-    "timestamp": "2026-02-07T..."
-}
-```
-
-## 🔍 Query Routing Logic
-
-The router uses LLM-based classification:
-
-| Query Contains | Routed To | Examples |
-|---------------|-----------|----------|
-| "how many", "total", "statistics" | SQL Agent | "What is total export value?" |
-| "monthly", "trend", "quarterly", "best month" | SQL Agent | "Monthly exports of textiles to UAE" |
-| "can I export", "allowed", "prohibited" (specific HS) | Policy Agent | "Can I export HS 070310?" |
-| "rules of origin", "tariff benefits", "FTA", "ECTA", "CEPA", "customs procedures" | **Agreements Agent** | "Rules of origin for textiles to Australia" |
-| "DGFT", "FTP", "categories of supply", "deemed exports" | **Vector Agent** | "Categories of supply under DGFT FTP" |
-| "what HS code", "find HS", "classify", "which chapter" | **HS Lookup Agent** | "What HS codes cover edible nuts?" |
-| Data + policy/restrictions + agreements together | **Combined Agent** | "Show export values AND agreement benefits for chapter 07" |
-| HS code detected (auto-upgrade from policy/sql) | **Combined Agent** | "Can I export HS 070310 to Australia?" |
-| General questions | Synthesizer | "What is HS code?" |
-
-## 🎨 Features
-
-### ✅ Multi-Agent Orchestration
-- Intelligent query routing (7 route types: SQL, Policy, Agreements, Vector, HS_Lookup, Combined, General)
-- **Smart auto-upgrade**: Product queries with HS codes automatically upgrade to Combined
-- Combined agent runs ALL 4 agents (SQL + Policy + Agreements + DGFT FTP) for comprehensive answers
-- Result aggregation from multiple sources
-
-### ✅ Source Attribution
-- Every answer includes sources
-- SQL queries shown
-- Documents cited with relevance scores
-- Timestamps for traceability
-
-### ✅ Natural Language Processing
-- Understands natural language queries
-- Extracts entities (HS codes, countries)
-- Context-aware responses
-
-### ✅ Comprehensive Coverage
-- Structured data (SQL)
-- Unstructured documents (Vector)
-- Business rules (Policy)
-- Multi-source combined analysis (Combined)
-
-### ✅ Error Handling
-- Graceful degradation
-- Informative error messages
-- Fallback strategies
-
-### ✅ Conversation Memory
-- Per-session conversation history stored in memory
-- All agents receive conversation context via `MessagesPlaceholder`
-- SQL Agent uses history to resolve references ("show me data for it")
-- Answer Synthesizer maintains conversational coherence
-- Session management: create, clear, list, restore
-- Frontend persists session ID via localStorage
-
-## 🧠 Memory Architecture
-
-### How Memory Works
-
-```
-┌─────────────────────────────────────────────────┐
-│              ExportAdvisoryGraph                 │
-│                                                  │
-│  self.sessions = {                               │
-│    "default": [HumanMsg, AIMsg, HumanMsg, ...], │
-│    "session_123": [HumanMsg, AIMsg, ...],       │
-│  }                                               │
-└────────────────────┬────────────────────────────┘
-                     │
-            On each query:
-            1. Add HumanMessage to session
-            2. Pass full session history as state["messages"]
-            3. All agents receive state["messages"]
-            4. Add AIMessage to session after response
-```
-
-### Where Memory is Used
-
-| Component | Uses History? | How |
-|-----------|--------------|-----|
-| **Query Router** | ✅ Yes | MessagesPlaceholder in routing prompt |
-| **SQL Agent** | ✅ Yes | MessagesPlaceholder in SQL generation prompt |
-| **Policy Agent** | ❌ No | Uses extracted HS code from router + chapter notes from `itc_chapter_notes` |
-| **Agreements Agent** | ❌ No | Uses raw query text + extracted country + direct article lookup |
-| **Vector Agent** | ❌ No | Uses raw query text + section detection for direct lookup |
-| **Combined Agent** | ✅ Yes | Runs SQL (with history) + Policy (with chapter notes) + Agreements + DGFT FTP search |
-| **Synthesizer** | ✅ Yes | MessagesPlaceholder in synthesis prompt |
-
-### Multi-Turn Example
-
-```python
-graph = ExportAdvisoryGraph()
-
-# Turn 1: Establish context
-graph.query("What is HS 610910?", session_id="demo")
-# Agent learns: HS 610910 = Cotton T-shirts
-
-# Turn 2: Reference resolution
-graph.query("Show me export data for it", session_id="demo")
-# SQL Agent sees history → knows "it" = HS 610910
-# Generates: SELECT * FROM export_statistics WHERE hs_code = '610910'
-
-# Turn 3: Context carries forward  
-graph.query("Can I export it to Australia?", session_id="demo")
-# Policy Agent checks HS 610910 → Australia
-
-# Turn 4: Implicit context
-graph.query("What about UAE?", session_id="demo")
-# Agent understands: same HS code, different country
-```
-
-### Session Management API
-
-```python
-# Create/use a session
-result = graph.query("Hello", session_id="user_123")
-
-# Get history
-history = graph.get_session_history("user_123")
-# Returns: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "..."}]
-
-# Get message count
-count = graph.get_session_message_count("user_123")
-
-# List all sessions
-sessions = graph.list_sessions()
-
-# Clear a session
-graph.clear_session("user_123")
-```
-
-## 🔧 Configuration
-
-Edit `config.py` for:
-- Database connection
-- Vector store paths
-- Focus HS codes
-- Target countries
-- API keys
-
-## 📈 Performance
-
--   **Query Routing**: ~1-2 seconds
--   **SQL Execution**: ~0.5-2 seconds
--   **Vector Search**: ~1-3 seconds
--   **Policy Check**: ~0.5-1 second
--   **Total Response**: ~3-8 seconds (depends on query complexity)
-
-## 🐛 Troubleshooting
-
-### "No module named 'langgraph'"
-```bash
-pip install langgraph langchain-anthropic
-```
-
-### "Anthropic API key required"
-```bash
-# Check .env file
-ANTHROPIC_API_KEY=your_key_here
-```
-
-### "Database connection failed"
-Check `.env` has correct database password
-
-### "Vector stores not available"
-Run agreements ingestion:
-```bash
-python storage-scripts/agreements_ingest_enhanced.py
-```
-
-## 🚀 Advanced Usage
-
-### Custom Agent
-
-```python
-from agents.state import AgentState
-
-class CustomAgent:
-    def execute(self, state: AgentState) -> AgentState:
-        # Your logic here
-        state["custom_results"] = {...}
-        state["next_agent"] = "synthesizer"
-        return state
-
-# Add to graph in agents/graph.py:
-# workflow.add_node("custom", custom_agent.execute)
-```
-
-### Modify Routing Logic
-
-Edit `agents/router.py` (the `QueryRouter.route()` method) or update the prompt in `prompts/router_prompt.py`.
-
-### Modify SQL Generation
-
-Edit `prompts/sql_schema.py` to update the database schema context, or edit `prompts/sql_prompt.py` to change how SQL is generated.
-
-### Add New Data Sources
-
-Extend `ExportDataIntegrator` in `export_data_integrator.py`
-
-## 📚 API Reference
-
-### ExportAdvisoryGraph
-
-```python
-class ExportAdvisoryGraph:
-    def __init__(self, api_key: Optional[str] = None)
-    def query(self, user_query: str, session_id: str = "default") -> Dict[str, Any]
-    def format_response(self, result: Dict[str, Any]) -> str
-    def clear_session(self, session_id: str = "default") -> None
-    def get_session_history(self, session_id: str = "default") -> List[Dict[str, str]]
-    def list_sessions(self) -> List[str]
-    def get_session_message_count(self, session_id: str = "default") -> int
-```
-
-### `AgentState` (defined in `agents/state.py`)
-
-```python
-class AgentState(TypedDict):
-    messages: Sequence[BaseMessage]  # Full conversation history for context
-    user_query: str
-    query_type: str                  # 'sql', 'vector', 'policy', 'agreements', 'hs_lookup', 'general', 'combined'
-    hs_code: Optional[str]
-    country: Optional[str]
-    sql_results: Optional[Dict]
-    vector_results: Optional[List[Dict]]
-    policy_results: Optional[Dict]
-    agreement_results: Optional[List[Dict]]  # Trade agreement search results
-    hs_lookup_results: Optional[Dict]        # HS master 8-digit lookup results (13,407 codes)
-    final_answer: Optional[str]
-    sources: List[Dict[str, Any]]
-    next_agent: Optional[str]
-```
-
-## 🎯 Next Steps
-
-1. **Test the system**: `python test_agreement_queries.py --quick`
-2. **Try interactive mode**: `python -m agents.graph`
-3. **Run the web app**: `python app.py` → http://localhost:8000
-4. **Test memory**: Use multi-turn conversations in the web UI
-5. **Customize agents** — edit files in `agents/` and `prompts/`
-6. **Add more data sources** by extending `export_data_integrator.py`
+Exact implementation reference for `agents/` and `app.py`. Read alongside the code; the code is authoritative.
 
 ---
 
-**Built with LangGraph, LangChain, Anthropic Claude, FAISS, ChromaDB, and FastAPI** 🚀  
-**Last Updated**: March 8, 2026
-**Version**: 6.1 (HS Lookup Agent wired as graph node + HS_LOOKUP route)
+## 1. Graph topology (`agents/graph.py`)
+
+Built with `StateGraph(AgentState)`.
+
+```
+START
+  └─► router
+        ├─► sql          ─► synthesizer ─► END
+        ├─► policy       ─► synthesizer ─► END
+        ├─► vector       ─► synthesizer ─► END
+        ├─► agreements   ─► synthesizer ─► END
+        ├─► hs_lookup    ─► synthesizer ─► END
+        ├─► combined     ─► synthesizer ─► END
+        └─► general (no agent node)
+                         ─► synthesizer ─► END
+```
+
+The `"general"` route maps directly to `synthesizer` in the conditional edge map — no intermediate agent runs.
+
+### Node registrations
+
+| LangGraph node | Method |
+|---|---|
+| `router` | `QueryRouter.route` |
+| `sql` | `SQLAgent.execute` |
+| `policy` | `PolicyAgent.execute` |
+| `vector` | `VectorAgent.execute` |
+| `agreements` | `AgreementsAgent.execute` |
+| `hs_lookup` | `HSLookupAgent.execute` |
+| `combined` | `ExportAdvisoryGraph._combined_execute` |
+| `synthesizer` | `AnswerSynthesizer.execute` |
+
+---
+
+## 2. AgentState contract (`agents/state.py`)
+
+`AgentState` is a `TypedDict`. All fields flow through every node.
+
+| Field | Type | Purpose |
+|---|---|---|
+| `messages` | `Sequence[BaseMessage]` (append-only) | Full session conversation history passed to every LLM call |
+| `user_query` | `str` | Current user turn text |
+| `query_type` | `str` | Route: `sql \| policy \| vector \| agreements \| hs_lookup \| combined \| general` |
+| `hs_code` | `Optional[str]` | Normalized HS code extracted by router (digits only, leading zeros restored) |
+| `country` | `Optional[str]` | Matched target country: `australia \| uae \| uk` |
+| `product_name` | `Optional[str]` | Product name extracted by LLM router for description-based HS lookup |
+| `sql_results` | `Optional[Dict]` | `{query, result: {columns, rows} or {affected_rows}, success, guarded?, guard_status?}` |
+| `policy_results` | `Optional[Dict]` | `{result: <integrator output or chapter batch>, success}` |
+| `vector_results` | `Optional[List[Dict]]` | DGFT FTP + agreements docs: `{type, text, metadata, score}` |
+| `agreement_results` | `Optional[List[Dict]]` | FTA docs: `{agreement, country, article, doc_type, score, text, cross_ref_articles, is_cross_ref}` |
+| `hs_lookup_results` | `Optional[Dict]` | `{results: [...], count, search_term, is_ambiguous, needs_clarification, clarification_type, clarification_message, success}` |
+| `needs_clarification` | `Optional[bool]` | Propagated from `hs_lookup_results` for caller detection |
+| `final_answer` | `Optional[str]` | Markdown string produced by synthesizer |
+| `sources` | `List[Dict]` | Trace records appended by each agent |
+| `next_agent` | `Optional[str]` | Used by conditional edges to pick next node |
+
+### Source record types written by agents
+
+| `type` | Written by | Key fields |
+|---|---|---|
+| `sql` | SQLAgent | `query`, `database`, `timestamp` |
+| `policy_check` | PolicyAgent, combined | `hs_code` or `chapters`, `country`, `tables`, `timestamp` |
+| `trade_data_guard` | SQLAgent | `status`, `message`, `timestamp` |
+| `vector_search` | VectorAgent, combined | `store`, `num_results`, `dgft_ftp_results`, `agreement_results`, `query`, `timestamp` |
+| `trade_agreements` | AgreementsAgent | `store`, `num_results`, `countries`, `agreements`, `cross_refs_included`, `timestamp` |
+
+---
+
+## 3. Router behavior (`agents/router.py`)
+
+### 3.1 Step-by-step routing logic
+
+```
+1. LLM classifies query_type (prompts/router_prompt.py)
+   → SQL | POLICY | AGREEMENTS | VECTOR | HS_LOOKUP | COMBINED | GENERAL
+   Also extracts: PRODUCT: <name>
+
+2. Deterministic DGFT FTP override
+   IF is_ftp_policy_reference_query(query) AND NOT is_explicit_trade_data_request(query):
+     query_type = "vector"
+     product_name = None   ← suppress HS carry-over for FTP article lookups
+
+3. HS code extraction (regex)
+   \b(\d{6,8})\b  → normalize → restore dropped leading zeros (odd-digit lengths)
+
+4. Context carry-over (conversation history)
+   IF no HS in current query AND NOT new product query:
+     scan recent messages for last HS code mentioned
+   Suppressed when: query_type=hs_lookup, product_name is set, FTP reference query
+
+5. Product-to-HS lookup (description search)
+   IF no HS found AND product_name is set:
+     hs_code = _find_hs_code_by_description(product_name)
+     → merges policy table hits (ste_items, restricted_items, prohibited_items) + hs_master_8_digit
+     → policy table hits ranked first
+     IF top match came from a policy table OR query_type in (general, vector, hs_lookup):
+       query_type = "policy"   ← ensures policy agent always checks known restricted items
+
+6. Auto-upgrade to combined
+   IF query_type != "hs_lookup":
+     IF hs_code AND country:   query_type = "combined"
+     IF hs_code AND query_type == "policy":  query_type = "combined"
+
+7. Policy-followup keyword upgrade
+   IF hs_code AND query_type in (hs_lookup, general):
+     IF any keyword in query (restriction/prohibited/policy/ste/duty/etc.):
+       query_type = "combined"
+
+8. Write to state: query_type, hs_code, country, product_name, next_agent
+   Store _last_hs_matches in state["hs_lookup_results"] if description search ran
+```
+
+### 3.2 HS code normalization
+
+Strips non-digits, restores leading zero when length is odd (1→2, 3→4, 5→6, 7→8), truncates to 8 digits.
+
+### 3.3 Description-to-HS search (`_find_hs_code_by_description`)
+
+1. `HSLookupAgent.search_by_description(product_name, limit=20)` — searches `hs_master_8_digit`
+2. `_search_policy_tables_by_description(query, limit=20)` — FTS on `restricted_items`, `prohibited_items`, `ste_items`; ILIKE fallback if FTS returns nothing
+3. Merges both; policy hits ranked first; returns `merged[0]["hs_code"]` and stores full `_last_hs_matches`
+
+---
+
+## 4. Trade guard (`agents/trade_guard.py`)
+
+### 4.1 Explicit trade intent detection
+
+`is_explicit_trade_data_request(query)` returns True if query contains:
+- Literal terms: `trade data`, `export statistics`, `monthly exports`, `ytd exports`, `export value`, etc.
+- Pattern: `(export|trade) ... (data|stats|value|monthly|quarterly|growth|ytd|historical)`
+- Reverse pattern: `(data|stats|value|...) ... (export|trade)`
+- How-much pattern: `(how much|total|show|compare|...) ... (export|trade)` + data/stats/value/etc.
+
+### 4.2 FTP policy reference detection
+
+`is_ftp_policy_reference_query(query)` requires both:
+- A DGFT/FTP context term: `dgft`, `foreign trade policy`, `ftp`, `handbook of procedures`, `hbp`
+- An article/section reference: `article`, `section`, `clause`, `paragraph`, or `\d+\.\d{2,}`
+
+### 4.3 HS scope validation
+
+`validate_trade_hs_request(query, state_hs_code, allowed_hs6)` returns a `TradeValidationResult`:
+
+| `status` | Condition |
+|---|---|
+| `ok` | Token ≥6 digits, HS-6 prefix in allowlist |
+| `not_allowed` | Token ≥6 digits, HS-6 not in allowlist |
+| `needs_6_to_8_digit` | Token <6 digits, prefix matches allowed code(s) |
+| `missing_hs` | No usable token found; falls back to session `state_hs_code` if valid |
+
+---
+
+## 5. SQL Agent (`agents/sql_agent.py`)
+
+```
+1. IF is_explicit_trade_data_request(user_query):
+     run validate_trade_hs_request()
+     IF status != "ok":
+       write guarded result to state["sql_results"]
+       append trade_data_guard source record
+       state["next_agent"] = "synthesizer"
+       return   ← short-circuit, no SQL executed
+     ELSE:
+       inject "Use HS code {hs6} for trade data tables." into query_for_sql
+
+2. Generate SQL:
+   (sql_prompt | llm | StrOutputParser()).invoke({messages, query_for_sql})
+   Strip markdown fences (```sql ... ```)
+
+3. Execute via psycopg2:
+   cursor.execute(sql_query)
+   IF cursor.description: fetch columns + rows (capped display at 50)
+   ELSE: return affected_rows
+
+4. Write to state["sql_results"]: {query, result, success: True}
+   Append sql source record
+```
+
+The SQL prompt (`prompts/sql_prompt.py`) receives the full database schema context from `prompts/sql_schema.py`.
+
+---
+
+## 6. Policy Agent (`agents/policy_agent.py`)
+
+```
+IF state["hs_code"] is None:
+  return error result → synthesizer
+
+IF state["country"] is set:
+  result = integrator.can_export_to_country(hs_code, country, check_agreements=False)
+  → returns {can_export, hs_info: {is_prohibited, is_restricted, is_ste, ...}, issues, warnings}
+ELSE:
+  result = integrator.get_hs_code_info(hs_code)
+  → returns {is_prohibited, is_restricted, is_ste, prohibited_info?, restricted_info?, ste_info?,
+             itc_policy?, chapter_notes?, description, hierarchy}
+
+Write to state["policy_results"]: {result, success: True}
+```
+
+### ExportDataIntegrator check sequence (`export_data_integrator.py`)
+
+For `get_hs_code_info(hs_code)`:
+
+1. `_get_hs_code_basic(hs_code)` — `hs_codes` table, exact match first
+2. `_get_itc_policy(hs_code)` — `itc_hs_products` table
+3. `_check_prohibited(hs_code)` — `prohibited_items`, exact match then prefix LIKE
+4. `_check_restricted(hs_code)` — `restricted_items`, exact match then prefix LIKE
+5. `_check_ste(hs_code)` — `ste_items`, exact match then prefix LIKE (6-digit → 8-digit children)
+6. `_get_chapter_notes(hs_code)` — `itc_chapter_notes` grouped by `note_type`
+
+---
+
+## 7. Combined execute (`agents/graph.py _combined_execute`)
+
+```python
+# Step 1 — SQL (conditional)
+if is_explicit_trade_data_request(state["user_query"]):
+    state = self.sql_agent.execute(state)
+
+# Step 2 — Policy
+if state["hs_code"]:
+    state = self.policy_agent.execute(state)
+else:
+    # Chapter-level batch: extract chapter numbers from query
+    # For each chapter: query prohibited_items, restricted_items,
+    #   ste_items, itc_chapter_policies WHERE hs_code LIKE '{ch}%'
+    # Write batch result to state["policy_results"]
+
+# Step 3 — Agreements (conditional)
+if state["country"] and self.agreements_agent.retriever:
+    state = self.agreements_agent.execute(state)
+
+# Step 4 — DGFT FTP vector (always if retriever available)
+if self.vector_agent.dgft_retriever:
+    hits = self.vector_agent.dgft_retriever.search(query, top_k=3)
+    # Append to state["vector_results"] as type="dgft_ftp" entries
+
+state["next_agent"] = "synthesizer"
+```
+
+---
+
+## 8. HS Lookup Agent (`agents/hs_lookup_agent.py`)
+
+Seven-strategy search against `hs_master_8_digit`, applied in order until results found:
+
+| Strategy | Method |
+|---|---|
+| 1 | Exact HS code match |
+| 2 | Prefix match (e.g. 6-digit matches 8-digit children) |
+| 3 | PostgreSQL FTS: `plainto_tsquery('english', ...)` with min rank 0.03 |
+| 4 | Top-3 longest keywords — `AND ILIKE '%kw%'` on all three |
+| 5 | All extracted keywords — `AND ILIKE '%kw%'` |
+| 6 | Top-5 longest keywords — `OR ILIKE '%kw%'` |
+| 7 | `pg_trgm word_similarity` with threshold 0.25 |
+
+Result handling:
+
+| Count | `clarification_type` | `needs_clarification` | Action |
+|---|---|---|---|
+| 0 | `no_match` | True | Ask user for more detail |
+| 1 (confident) | None | False | Return directly, no clarification |
+| 2–8 | `pick_one` | True | Show table of options, ask user to pick |
+| >8 | `too_broad` | True | Show top-5 sample, ask for more specific description |
+
+Special case `confirm_one`: single result with moderate confidence — synthesizer asks user to confirm before giving policy advice.
+
+---
+
+## 9. Agreements Agent (`agents/agreements_agent.py`)
+
+```
+Retriever preference: agreements_retriever_qdrant → agreements_retriever (FAISS/Chroma)
+
+1. Detect direct article reference pattern (e.g. "Article 4.3")
+   IF match: direct article lookup from index → fetch that article text
+   ELSE: semantic search (top 8 results)
+
+2. Cross-reference enrichment:
+   FOR each returned article WITH cross_ref_articles field:
+     fetch referenced articles and append
+
+3. Filter to requested country if set
+4. Write to state["agreement_results"]
+5. Append trade_agreements source record
+```
+
+---
+
+## 10. Vector Agent (`agents/vector_agent.py`)
+
+```
+DGFT retriever preference: dgft_ftp_retriever_qdrant → dgft_ftp_retriever (FAISS/Chroma)
+
+1. Detect direct section reference (e.g. "7.02")
+   IF match: direct section lookup from section index
+   ELSE: semantic search; chapter-filtered if chapter detected in query
+
+2. Optionally supplement with agreements retriever output
+   (integrator.search_trade_agreements if available)
+
+3. Combine into state["vector_results"] as list of
+   {type: "dgft_ftp", text, metadata, score}
+
+4. Append vector_search source record
+```
+
+---
+
+## 11. Synthesizer (`agents/synthesizer.py`)
+
+The synthesizer never invents policy status. It builds summaries from state fields and passes them to a final LLM call.
+
+### Policy summary construction (no LLM involved)
+
+```python
+# Path A: can_export_to_country result (has "can_export" key)
+is_prohibited = result["hs_info"]["is_prohibited"]
+is_restricted  = result["hs_info"]["is_restricted"]
+is_ste         = result["hs_info"]["is_ste"]
+# Also formats: can_export, issues, warnings, requirements
+
+# Path B: get_hs_code_info result (no "can_export" key)
+is_prohibited = result["is_prohibited"]
+is_restricted  = result["is_restricted"]
+is_ste         = result["is_ste"]
+
+# Decision (same for both paths):
+if not is_prohibited and not is_restricted and not is_ste:
+    → "Export Policy: FREE — not found in prohibited, restricted, or STE lists."
+if is_prohibited:
+    → "PROHIBITED: {description} — {policy_condition}"
+if is_restricted:
+    → "RESTRICTED: {description} — {policy_condition}"
+if is_ste:
+    → "STE: Export only via {authorized_entity} — {policy_condition}"
+
+# Chapter notes appended if present (main_notes, export_licensing, policy_conditions)
+```
+
+### HS lookup clarification formatting
+
+- `no_match` → plain message + clarification prompt
+- `pick_one` / `confirm_one` → markdown table of options
+- `too_broad` → top-5 sample table + narrowing prompt
+- Clean match → summary of top matches
+
+### NOT CHECKED markers
+
+Each summary variable starts as `"NOT CHECKED — <agent> was not invoked for this query."` and is replaced only if the agent ran. This prevents the final LLM from hallucinating results for agents that didn't run.
+
+---
+
+## 12. Session memory model (`agents/graph.py`)
+
+```python
+self.sessions: Dict[str, List[BaseMessage]] = {}
+
+# On each query():
+sessions[session_id].append(HumanMessage(content=user_query))
+initial_state["messages"] = list(sessions[session_id])  # full history
+result = graph.invoke(initial_state)
+sessions[session_id].append(AIMessage(content=result["final_answer"]))
+```
+
+Every LLM call (router, SQL, synthesizer) receives the full `messages` list via `MessagesPlaceholder`. This enables contextual reference resolution ("same code", "what about UAE?", "it").
+
+Session management API:
+- `clear_session(session_id)`
+- `get_session_history(session_id)` → `[{role, content}]`
+- `list_sessions()`
+- `get_session_message_count(session_id)`
+
+---
+
+## 13. LLM configuration
+
+- Provider: Anthropic Claude via `langchain_anthropic.ChatAnthropic`
+- Model: `Config.LLM_MODEL` (default `claude-sonnet-4-20250514`, env var `LLM_MODEL`)
+- Temperature: `Config.LLM_TEMPERATURE` (default `0.1`, env var `LLM_TEMPERATURE`)
+- Used by: `QueryRouter`, `SQLAgent`, `AnswerSynthesizer`
+- NOT used by: `PolicyAgent`, `AgreementsAgent`, `VectorAgent`, `HSLookupAgent` (all DB/retriever based)
+
+---
+
+## 14. Execution trace examples
+
+### A) "Explain DGFT FTP Article 8.04"
+
+```
+router: is_ftp_policy_reference_query=True → override to "vector", hs_code=None
+vector: direct section lookup → returns DGFT FTP section 8.04 text
+synthesizer: vector_results formatted, policy/sql = NOT CHECKED
+```
+
+### B) "Show trade data for chapter 08"
+
+```
+router: is_explicit_trade_data_request=True, hs_code extracted as "08" (2 digits)
+sql_agent: validate_trade_hs_request → status="needs_6_to_8_digit"
+  → guarded result, no SQL executed
+synthesizer: guard message passed through
+```
+
+### C) "Can I export HS 070310 to Australia?"
+
+```
+router: hs_code="070310", country="australia"
+  → auto-upgrade: hs_code + country + policy → "combined"
+combined:
+  1. is_explicit_trade_data_request=False → skip SQL
+  2. policy_agent: can_export_to_country("070310", "australia")
+  3. agreements_agent: Qdrant search for Australia FTA content
+  4. dgft_ftp search: top-3 DGFT sections
+synthesizer: assembles policy flags + agreement articles + DGFT text
+```
+
+### D) "Iron ore fines export rules"
+
+```
+router: LLM classifies "hs_lookup" or "policy"
+  product_name="iron ore fines"
+  _find_hs_code_by_description → hits ste_items table (26011131 etc.)
+  top match source="ste_items" → query_type forced to "policy"
+  auto-upgrade: hs_code + policy → "combined"
+combined:
+  policy_agent: get_hs_code_info("26011131") → is_ste=True
+synthesizer: "STE: Export only via MOIL — Subject to Policy Condition 1"
+```
+
+### E) "What are the textiles rules of origin under India-UAE CEPA?"
+
+```
+router: country="uae", no HS code, LLM → "agreements"
+agreements_agent: semantic search → FTA articles on rules of origin
+synthesizer: cites specific articles from India-UAE CEPA
+```
+
+---
+
+## 15. Extension points
+
+| What to change | Where |
+|---|---|
+| Route classification rules | `prompts/router_prompt.py` |
+| SQL generation + schema | `prompts/sql_prompt.py`, `prompts/sql_schema.py` |
+| Final answer synthesis style | `prompts/synthesizer_prompt.py` |
+| New graph node | `agents/graph.py`: `add_node`, `add_edge`, update conditional edge map |
+| Trade-data allowlist | `config.py: Config.FOCUS_HS_CODES` |
+| Trade intent patterns | `agents/trade_guard.py: _TRADE_TERMS, _TRADE_PATTERN` |
+| Retriever backend switch | `agents/agreements_agent.py`, `agents/vector_agent.py` constructor |
+
+---
+
+Last updated: 2026-03-24

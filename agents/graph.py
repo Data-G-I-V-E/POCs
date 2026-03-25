@@ -28,6 +28,7 @@ from .vector_agent import VectorAgent
 from .agreements_agent import AgreementsAgent
 from .hs_lookup_agent import HSLookupAgent
 from .synthesizer import AnswerSynthesizer
+from .trade_guard import is_explicit_trade_data_request
 
 
 class ExportAdvisoryGraph:
@@ -64,8 +65,9 @@ class ExportAdvisoryGraph:
     
     def _combined_execute(self, state: AgentState) -> AgentState:
         """Execute both SQL and Policy agents for complex queries"""
-        # Run SQL agent first
-        state = self.sql_agent.execute(state)
+        # Run SQL only when user explicitly asks for trade/export data.
+        if is_explicit_trade_data_request(state.get("user_query", "")):
+            state = self.sql_agent.execute(state)
         
         # Run Policy agent (even without a specific HS code,
         # we do a chapter-level policy check)
@@ -173,10 +175,14 @@ class ExportAdvisoryGraph:
                 state["vector_results"] = existing_vector
                 
                 if dgft_hits:
+                    stores_used = ["dgft_ftp_rag_store"]
                     state["sources"].append({
                         "type": "vector_search",
-                        "stores": ["dgft_ftp_rag_store"],
+                        "store": ", ".join(stores_used),
+                        "stores": stores_used,
                         "dgft_ftp_results": len(dgft_hits),
+                        "agreement_results": 0,
+                        "num_results": len(dgft_hits),
                         "query": state["user_query"],
                         "timestamp": datetime.now().isoformat()
                     })
@@ -332,15 +338,24 @@ class ExportAdvisoryGraph:
                     output.append(f"   Query: {source['query']}")
                     output.append(f"   Database: {source['database']}")
                 elif source['type'] == 'policy_check':
-                    output.append(f"   HS Code: {source['hs_code']}")
-                    output.append(f"   Country: {source['country']}")
-                    output.append(f"   Tables: {', '.join(source['tables'])}")
+                    if source.get('hs_code'):
+                        output.append(f"   HS Code: {source['hs_code']}")
+                    elif source.get('chapters'):
+                        output.append(f"   Chapters: {', '.join(source.get('chapters', []))}")
+                    if source.get('country'):
+                        output.append(f"   Country: {source['country']}")
+                    if source.get('tables'):
+                        output.append(f"   Tables: {', '.join(source.get('tables', []))}")
                 elif source['type'] == 'vector_search':
-                    output.append(f"   Store: {source['store']}")
-                    output.append(f"   Results: {source['num_results']}")
+                    store_label = source.get('store') or ', '.join(source.get('stores', [])) or 'vector'
+                    result_count = source.get('num_results')
+                    if result_count is None:
+                        result_count = source.get('dgft_ftp_results', 0) + source.get('agreement_results', 0)
+                    output.append(f"   Store: {store_label}")
+                    output.append(f"   Results: {result_count}")
                 elif source['type'] == 'trade_agreements':
-                    output.append(f"   Store: {source['store']}")
-                    output.append(f"   Results: {source['num_results']}")
+                    output.append(f"   Store: {source.get('store', 'agreements')}")
+                    output.append(f"   Results: {source.get('num_results', 0)}")
                     output.append(f"   Countries: {', '.join(source.get('countries', []))}")
                     output.append(f"   Agreements: {', '.join(source.get('agreements', []))}")
                     if source.get('cross_refs_included'):

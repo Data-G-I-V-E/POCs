@@ -22,6 +22,7 @@ import threading
 from contextlib import asynccontextmanager
 
 from agents import ExportAdvisoryGraph
+from agents.trade_guard import validate_trade_hs_request
 from export_data_integrator import ExportDataIntegrator
 from config import Config
 
@@ -29,6 +30,47 @@ from config import Config
 agent = None
 integrator = None
 _init_complete = False
+
+
+def _validate_trade_data_input(request: "TradeDataRequest") -> Dict[str, Any]:
+    """
+    Validate trade-data input against configured HS scope.
+
+    Rules enforced:
+    - Accept only 6-8 digit HS input that maps to allowed HS-6 codes.
+    - If input is <6 digits (e.g., chapter/prefix like "08") and matches
+      tracked HS codes, ask for a 6-8 digit HS code.
+    """
+    raw_input = (request.hs_code or request.chapter or "").strip()
+    if not raw_input:
+        return {
+            "ok": False,
+            "status": "missing_hs",
+            "message": (
+                "Please provide a 6 to 8 digit HS code for trade data. "
+                f"Supported HS-6 codes are: {', '.join(Config.FOCUS_HS_CODES)}."
+            ),
+        }
+
+    validation = validate_trade_hs_request(
+        query=f"show trade data for hs {raw_input}",
+        state_hs_code=None,
+        allowed_hs6=Config.FOCUS_HS_CODES,
+    )
+
+    if validation.status != "ok":
+        return {
+            "ok": False,
+            "status": validation.status,
+            "message": validation.message,
+        }
+
+    return {
+        "ok": True,
+        "status": "ok",
+        "hs_code_6": validation.hs_code_6,
+        "message": validation.message,
+    }
 
 
 def _initialize_sync():
@@ -195,73 +237,86 @@ async def get_trade_data(request: TradeDataRequest):
     """
     Get trade data for visualization
     
-    Returns export statistics for specified HS code or chapter
+    Returns export statistics for a validated HS code.
     """
     if not integrator:
         raise HTTPException(status_code=503, detail="Integrator not initialized")
+
+    validation = _validate_trade_data_input(request)
+    if not validation["ok"]:
+        return {
+            "data": [],
+            "hs_code": request.hs_code,
+            "chapter": request.chapter,
+            "guarded": True,
+            "guard_status": validation["status"],
+            "message": validation["message"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    hs_code_6 = validation["hs_code_6"]
     
     try:
         conn = psycopg2.connect(**Config.DB_CONFIG)
         cursor = conn.cursor()
-        
-        # Build query based on request
-        if request.hs_code:
-            query = """
-                SELECT c.country_name, SUM(es.export_value_crore) as total_value
-                FROM export_statistics es
-                JOIN countries c ON es.country_code = c.country_code
-                WHERE es.hs_code = %s
-                GROUP BY c.country_name, es.country_code
-                ORDER BY total_value DESC
-            """
-            cursor.execute(query, (request.hs_code,))
-        elif request.chapter:
-            query = """
-                SELECT c.country_name, SUM(es.export_value_crore) as total_value
-                FROM export_statistics es
-                JOIN countries c ON es.country_code = c.country_code
-                WHERE es.hs_code LIKE %s
-                GROUP BY c.country_name, es.country_code
-                ORDER BY total_value DESC
-            """
-            cursor.execute(query, (f"{request.chapter}%",))
-        else:
-            # Get totals by country
-            query = """
-                SELECT c.country_name, SUM(es.export_value_crore) as total_value
-                FROM export_statistics es
-                JOIN countries c ON es.country_code = c.country_code
-                GROUP BY c.country_name, es.country_code
-                ORDER BY total_value DESC
-            """
-            cursor.execute(query)
-        
+
+        query = """
+            SELECT c.country_name, es.year_label, es.export_value_crore as value
+            FROM export_statistics es
+            JOIN countries c ON es.country_code = c.country_code
+            WHERE es.hs_code = %s
+            ORDER BY c.country_name, es.year_label
+        """
+        cursor.execute(query, (hs_code_6,))
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
-        # Format for chart
-        data = []
-        # Convert request.countries to lowercase for comparison
+
+        def short_country(name):
+            if not name:
+                return "Unknown"
+            nl = name.lower()
+            if "emirates" in nl:
+                return "UAE"
+            if "kingdom" in nl:
+                return "UK"
+            return name
+
         countries_lower = [c.lower() for c in request.countries]
-        
-        for country_name, value in results:
-            if country_name:
-                # Check if country name matches any in the request list
-                # Handle variations: "United Arab Emirates" → "uae", "United Kingdom" → "uk"
-                country_lower = country_name.lower()
-                if ('uae' in countries_lower and 'emirates' in country_lower) or \
-                   ('uk' in countries_lower and 'kingdom' in country_lower) or \
-                   ('australia' in countries_lower and 'australia' in country_lower):
-                    data.append({
-                        "country": country_name.upper() if len(country_name) <= 3 else country_name,
-                        "value": float(value) if value else 0
-                    })
-        
+        data_by_year: Dict[str, List[Dict]] = {}
+        countries_seen: List[str] = []
+
+        for country_name, year_label, value in results:
+            if not country_name:
+                continue
+            cn_lower = country_name.lower()
+            if not (('uae' in countries_lower and 'emirates' in cn_lower) or
+                    ('uk' in countries_lower and 'kingdom' in cn_lower) or
+                    ('australia' in countries_lower and 'australia' in cn_lower)):
+                continue
+            label = short_country(country_name)
+            if label not in countries_seen:
+                countries_seen.append(label)
+            if year_label not in data_by_year:
+                data_by_year[year_label] = []
+            data_by_year[year_label].append({
+                "country": label,
+                "value": float(value) if value else 0
+            })
+
+        years = sorted(data_by_year.keys())
+        # backward compat: expose latest year as flat 'data'
+        data = data_by_year.get(years[-1], []) if years else []
+
         return {
             "data": data,
-            "hs_code": request.hs_code,
-            "chapter": request.chapter,
+            "data_by_year": data_by_year,
+            "years": years,
+            "countries": countries_seen,
+            "hs_code": hs_code_6,
+            "chapter": None,
+            "guarded": False,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -275,46 +330,43 @@ async def get_monthly_trade_data(request: TradeDataRequest):
     """
     Get monthly trade data for visualization (line chart).
     
-    Returns month-by-month export values per country for a given HS code or chapter.
+    Returns month-by-month export values per country for a validated HS code.
     """
     if not integrator:
         raise HTTPException(status_code=503, detail="Integrator not initialized")
+
+    validation = _validate_trade_data_input(request)
+    if not validation["ok"]:
+        return {
+            "monthly_data": {},
+            "months": [],
+            "hs_code": request.hs_code,
+            "chapter": request.chapter,
+            "guarded": True,
+            "guard_status": validation["status"],
+            "message": validation["message"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    hs_code_6 = validation["hs_code_6"]
     
     try:
         conn = psycopg2.connect(**Config.DB_CONFIG)
         cursor = conn.cursor()
-        
-        if request.hs_code:
-            query = """
-                SELECT country_name, month, month_name, export_value_crore, 
-                       monthly_growth_pct, ytd_value_crore
-                FROM v_monthly_exports
-                WHERE hs_code = %s
-                ORDER BY country_name, month
-            """
-            cursor.execute(query, (request.hs_code,))
-        elif request.chapter:
-            query = """
-                SELECT country_name, month, month_name, 
-                       SUM(export_value_crore) as export_value_crore,
-                       AVG(monthly_growth_pct) as monthly_growth_pct,
-                       SUM(ytd_value_crore) as ytd_value_crore
-                FROM v_monthly_exports
-                WHERE chapter = %s
-                GROUP BY country_name, month, month_name
-                ORDER BY country_name, month
-            """
-            cursor.execute(query, (request.chapter,))
-        else:
-            cursor.close()
-            conn.close()
-            return {"monthly_data": {}, "months": [], "hs_code": None, "chapter": None,
-                    "timestamp": datetime.now().isoformat()}
-        
+
+        query = """
+            SELECT country_name, month, month_name, export_value_crore,
+                   monthly_growth_pct, ytd_value_crore, prev_year_value_crore
+            FROM v_monthly_exports
+            WHERE hs_code = %s
+            ORDER BY country_name, month
+        """
+        cursor.execute(query, (hs_code_6,))
+
         results = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         # Country name normalization for display
         def short_country(name):
             if not name:
@@ -325,13 +377,13 @@ async def get_monthly_trade_data(request: TradeDataRequest):
             if "kingdom" in nl:
                 return "UK"
             return name
-        
+
         # Group by country → list of monthly values
         countries_lower = [c.lower() for c in request.countries]
         monthly_data = {}  # { "Australia": [{month, value, growth}, ...], ... }
         months_set = set()
-        
-        for country_name, month, month_name, value, growth, ytd in results:
+
+        for country_name, month, month_name, value, growth, ytd, prev_value in results:
             if not country_name:
                 continue
             cn_lower = country_name.lower()
@@ -340,15 +392,16 @@ async def get_monthly_trade_data(request: TradeDataRequest):
                     ('uk' in countries_lower and 'kingdom' in cn_lower) or
                     ('australia' in countries_lower and 'australia' in cn_lower)):
                 continue
-            
+
             label = short_country(country_name)
             if label not in monthly_data:
                 monthly_data[label] = []
-            
+
             monthly_data[label].append({
                 "month": month,
                 "month_name": month_name,
                 "value": float(value) if value else 0,
+                "prev_year_value": float(prev_value) if prev_value else 0,
                 "growth_pct": float(growth) if growth else None,
                 "ytd_value": float(ytd) if ytd else 0
             })
@@ -360,8 +413,9 @@ async def get_monthly_trade_data(request: TradeDataRequest):
         return {
             "monthly_data": monthly_data,
             "months": months,
-            "hs_code": request.hs_code,
-            "chapter": request.chapter,
+            "hs_code": hs_code_6,
+            "chapter": None,
+            "guarded": False,
             "timestamp": datetime.now().isoformat()
         }
         

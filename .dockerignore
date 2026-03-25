@@ -1,0 +1,37 @@
+# Environment & secrets
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+rag_env/
+.venv/
+
+# Local ChromaDB (not used at runtime — Qdrant is primary)
+agreements_rag_store/agreements_chroma/
+dgft_ftp_rag_store/dgft_ftp_chroma/
+dgft_chroma_db/
+
+# Raw data / PDFs (large, not needed at runtime)
+data/
+
+# Dev/misc
+*.md
+*.log
+.git/
+.gitignore
+.gemini/
+notebooks/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/

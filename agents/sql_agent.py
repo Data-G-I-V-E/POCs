@@ -14,6 +14,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 from config import Config
 from .state import AgentState
+from .trade_guard import is_explicit_trade_data_request, validate_trade_hs_request
 from prompts.sql_prompt import SQL_SYSTEM_PROMPT, SQL_HUMAN_TEMPLATE
 
 
@@ -32,11 +33,45 @@ class SQLAgent:
     
     def execute(self, state: AgentState) -> AgentState:
         """Execute SQL query"""
+        user_query = state.get("user_query", "")
+
+        if is_explicit_trade_data_request(user_query):
+            validation = validate_trade_hs_request(
+                query=user_query,
+                state_hs_code=state.get("hs_code"),
+                allowed_hs6=Config.FOCUS_HS_CODES,
+            )
+            if validation.status != "ok":
+                state["sql_results"] = {
+                    "query": None,
+                    "result": {"message": validation.message},
+                    "success": True,
+                    "guarded": True,
+                    "guard_status": validation.status,
+                }
+                state["sources"].append({
+                    "type": "trade_data_guard",
+                    "status": validation.status,
+                    "message": validation.message,
+                    "timestamp": datetime.now().isoformat(),
+                })
+                state["next_agent"] = "synthesizer"
+                return state
+
+            query_for_sql = user_query
+            if validation.hs_code_6:
+                query_for_sql = (
+                    f"{user_query}\n\n"
+                    f"Use HS code {validation.hs_code_6} for trade data tables."
+                )
+        else:
+            query_for_sql = user_query
+
         try:
             # Generate SQL (with conversation history for context)
             sql_query = (self.sql_prompt | self.llm | StrOutputParser()).invoke({
                 "messages": state["messages"],
-                "query": state["user_query"]
+                "query": query_for_sql
             })
             
             # Clean up SQL query

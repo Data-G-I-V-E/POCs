@@ -42,6 +42,8 @@ Analyze the user query and determine what type of agents are needed:
    
 4. Vector Agent - For queries about:
    - DGFT policies, FTP chapters
+   - DGFT FTP article/section references (e.g. "Article 8.04", "Section 7.02")
+   - Explanations of policy clauses/mechanisms in DGFT FTP/HBP
    - General policy documents
 
 5. HS_LOOKUP Agent - For queries explicitly asking to FIND or IDENTIFY HS codes for a product:
@@ -80,9 +82,13 @@ IMPORTANT:
 - "Show export values AND restrictions for chapter 07" → COMBINED (needs both)
 - "Compare chapters 61 and 07 with their policy conditions" → COMBINED (needs both)
 - "Can I export vegetables to Australia and what does the trade agreement say?" → COMBINED
+- "Explain DGFT FTP Article 8.04" → VECTOR (document clause explanation, not trade data)
 - "Monthly exports of textiles to UAE" → SQL (monthly data query)
 - "Which month had the highest exports?" → SQL (monthly data query)
 - "Quarterly trend for chapter 85 exports" → SQL (monthly data query)
+
+NEVER infer HS chapters/codes from legal references like "8.04".
+"Article 8.04" is NOT "chapter 80" and should not trigger trade-data SQL.
 
 Respond with ONE of: SQL, POLICY, AGREEMENTS, VECTOR, HS_LOOKUP, GENERAL, COMBINED
 
