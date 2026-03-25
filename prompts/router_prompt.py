@@ -121,6 +121,18 @@ Examples:
 - "tell me any restrictions for it" (after discussing HS code) → COMBINED | PRODUCT: NONE
 - "any restrictions or rules I should know" (after HS lookup) → COMBINED | PRODUCT: NONE
 - "can I export it, any rules?" (follow-up after HS code identified) → COMBINED | PRODUCT: NONE
-- "what documentation is needed?" (follow-up) → COMBINED | PRODUCT: NONE"""
+- "what documentation is needed?" (follow-up) → COMBINED | PRODUCT: NONE
+- "yes" (user confirming HS code shown to them) → GENERAL | PRODUCT: NONE
+- "ok" (user confirming) → GENERAL | PRODUCT: NONE
+- "yes that's correct" (confirming HS code) → GENERAL | PRODUCT: NONE
+- "correct" (confirming HS code) → GENERAL | PRODUCT: NONE
+- "yes it is correct" (confirming HS code) → GENERAL | PRODUCT: NONE
+- "provide restrictions and details" (follow-up after HS confirmed) → COMBINED | PRODUCT: NONE
+- "provide export information" (follow-up) → COMBINED | PRODUCT: NONE
+- "show me the export policy" (follow-up after HS code confirmed) → COMBINED | PRODUCT: NONE
+
+CRITICAL: When the user gives a short confirmation ("yes", "ok", "correct", "right", "sure", "proceed")
+without mentioning a new product, always route to GENERAL with PRODUCT: NONE.
+The code-level routing logic will handle upgrading to COMBINED when an HS code is confirmed in history."""
 
 ROUTER_HUMAN_TEMPLATE = "Query: {query}"

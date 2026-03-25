@@ -19,6 +19,7 @@ Result handling:
 
 import psycopg2
 import re
+import json
 from typing import Dict, List, Any, Optional
 from config import Config
 
@@ -117,6 +118,62 @@ class HSLookupAgent:
                 seen.add(t)
                 result.append(t)
         return result
+
+    def _llm_rerank(self, query: str, results: List[Dict]) -> List[Dict]:
+        """
+        Use an LLM to filter and rerank DB results by semantic relevance.
+        Prevents false positives from keyword overlap (e.g. 'electronic' in
+        'electronic water flow meter' pulling up 'electronic cigarettes').
+
+        Falls back to the original results list if the LLM call fails.
+        """
+        if not results:
+            return results
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=Config.ANTHROPIC_API_KEY)
+
+            candidates = "\n".join(
+                f"{r['hs_code']} | {r['description']}"
+                for r in results
+            )
+            prompt = (
+                f"A user wants to export: \"{query}\"\n\n"
+                f"The following HS codes were retrieved from a database:\n"
+                f"{candidates}\n\n"
+                f"Task: Return ONLY the HS codes that are genuinely relevant to the user's product. "
+                f"Exclude codes that matched only because of incidental word overlap "
+                f"(e.g. 'electronic cigarettes' is NOT relevant for 'electronic water flow meter'). "
+                f"Respond with a JSON array of HS code strings only, e.g. [\"90261000\", \"90289000\"]. "
+                f"If none are relevant, return []."
+            )
+
+            message = client.messages.create(
+                model=Config.LLM_MODEL,
+                max_tokens=256,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = message.content[0].text.strip()
+            # Extract JSON array from the response
+            match = re.search(r'\[.*?\]', raw, re.DOTALL)
+            if not match:
+                return results
+            relevant_codes = json.loads(match.group())
+            if not relevant_codes:
+                # LLM explicitly says nothing in the DB results is relevant.
+                # Return empty so the system asks for clarification rather than
+                # showing misleading results (e.g. "glycerol waters" for "water sensors").
+                return []
+
+            # Filter to relevant codes, preserving original order (score-sorted)
+            relevant_set = set(str(c).strip() for c in relevant_codes)
+            reranked = [r for r in results if r["hs_code"] in relevant_set]
+            # Fall back to originals only if the parse produced codes but none matched
+            # (shouldn't happen, but guards against HS code format mismatch)
+            return reranked if reranked else results
+        except Exception as e:
+            print(f"⚠️  HSLookupAgent: LLM rerank failed, using original results: {e}")
+            return results
 
     # ------------------------------------------------------------------
     # Individual strategies — each returns List[Dict] with 'score'
@@ -331,7 +388,8 @@ class HSLookupAgent:
             # Always supplement with itc_hs_products (ITC-specific codes + export policy)
             results = _merge(results, self._s_itc_products(cur, query, kws, limit))
 
-            return _top(results, limit)
+            ranked = _top(results, limit)
+            return self._llm_rerank(query, ranked)
         finally:
             cur.close(); conn.close()
 
@@ -419,6 +477,9 @@ class HSLookupAgent:
             results = _merge(results, self.search_by_description(product_name, limit=20))
 
         # ── Step 3: Trigram supplement on raw user_query ─────────────
+        # Only used to catch abbreviated DB text that FTS misses (e.g. "GRND" for
+        # "ground"). These raw trigram hits are NOT LLM-reranked by themselves so
+        # they are merged into the pool and the full pool is reranked at Step 5.
         try:
             conn = self._get_connection()
             cur  = conn.cursor()
@@ -437,6 +498,14 @@ class HSLookupAgent:
             results = self.search_by_description(user_query, limit=20)
             if not search_term:
                 search_term = user_query
+
+        # ── Step 5: Final LLM rerank on merged pool ───────────────────
+        # search_by_description already reranks its own results, but Step 3 may
+        # have added back keyword-matched junk (e.g. "mosquito repellants" for
+        # "electronic level detectors"). Rerank the whole pool so only semantically
+        # relevant candidates survive into the clarification/count logic.
+        if results and search_term:
+            results = self._llm_rerank(search_term, _top(results, 20))
 
         results = _top(results, 20)
         count   = len(results)

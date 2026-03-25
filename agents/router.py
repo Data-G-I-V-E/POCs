@@ -230,8 +230,16 @@ class QueryRouter:
                 key=lambda r: (r.get("score", 0), r.get("code_level", 0)),
                 reverse=True
             )
+            # Apply LLM rerank on the fully merged list (covers policy-table results
+            # that bypass the per-source rerank, e.g. "electronic cigarettes" matching
+            # "electronic" in "electronic water level sensors").
+            try:
+                from .hs_lookup_agent import HSLookupAgent
+                merged = HSLookupAgent()._llm_rerank(query, merged) or merged
+            except Exception as e:
+                print(f"Router: LLM rerank failed, using merged results: {e}")
             self._last_hs_matches = merged
-            return merged[0]["hs_code"]
+            return merged[0]["hs_code"] if merged else None
 
         return None
     
@@ -287,43 +295,40 @@ class QueryRouter:
         # Extract HS code and country
         hs_match = re.search(r'\b(\d{6,8})\b', user_query)
         hs_code = self._normalize_hs_code(hs_match.group(1)) if hs_match else None
-        
-        # If no HS code in current query, scan conversation history for the most
-        # recently mentioned HS code — but ONLY for follow-up queries about the
-        # same product, NOT when the user is asking about a new product.
-        # Skip history scan for hs_lookup (new classification request) and when
-        # the query contains a new product name to look up.
-        _is_new_product_query = (
+        # hs_confirmed: True when HS code is either typed by the user in the current
+        # message OR was carried forward from a previously confirmed code in history.
+        # False = code was never explicitly confirmed → must go through hs_lookup first.
+        hs_confirmed = hs_code is not None
+
+        # Scan conversation history for a previously confirmed HS code.
+        # Skip only when LLM explicitly classified this as a brand-new HS_LOOKUP
+        # request (user is asking about a completely different product).
+        # Do NOT skip just because product_name was extracted — the LLM often
+        # carries the prior product's name as context, which should not block the
+        # history scan for follow-up queries like "provide restrictions".
+        _is_new_classification_request = (
             query_type == "hs_lookup"
-            or bool(product_name)
             or (is_ftp_reference_query and not is_trade_data_request)
         )
-        if not hs_code and not _is_new_product_query:
+        if not hs_code and not _is_new_classification_request:
             for msg in reversed(state.get("messages", [])[:-1]):
                 content = msg.content if hasattr(msg, "content") else str(msg)
                 m = re.search(r'\b(\d{6,8})\b', content)
                 if m:
                     hs_code = self._normalize_hs_code(m.group(1))
+                    hs_confirmed = True  # previously confirmed in conversation
                     break
-        
-        # If still no HS code found, use LLM-extracted product name to search DB
+
+        # If product description given but still no confirmed HS code → hs_lookup.
+        # The hs_lookup agent will search + LLM-rerank and ask user to pick/confirm.
         if not hs_code and product_name and not (is_ftp_reference_query and not is_trade_data_request):
-            hs_code = self._find_hs_code_by_description(product_name)
-            # If we found an HS code by description, re-route to policy
-            # since the user is clearly asking about a specific product.
-            # Also upgrade hs_lookup → policy when the top match came from a
-            # restriction table (ste_items / restricted_items / prohibited_items)
-            # so the policy agent always fires for known restricted products.
-            if hs_code:
-                top_match = self._last_hs_matches[0] if self._last_hs_matches else {}
-                from_policy_table = top_match.get("source") in (
-                    "ste_items", "restricted_items", "prohibited_items"
-                )
-                if query_type in ("general", "vector", "hs_lookup") or from_policy_table:
-                    query_type = "policy"
+            query_type = "hs_lookup"
+            # hs_confirmed stays False; hs_code stays None so hs_lookup agent does
+            # a fresh description search (no single pre-selected code).
 
         if is_ftp_reference_query and not is_trade_data_request:
             hs_code = None
+            hs_confirmed = False
         
         country = None
         _country_aliases = {
@@ -342,32 +347,48 @@ class QueryRouter:
                     country = c
                     break
         
+        # ── When user provides HS code directly but LLM still routes hs_lookup ──
+        # e.g. "90278930 is the hs code" — code is confirmed, skip re-confirmation.
+        if hs_confirmed and hs_code and query_type == "hs_lookup":
+            query_type = "combined" if country else "policy"
+
         # ── Auto-upgrade to COMBINED for comprehensive answers ──
-        # When we have both a product (HS code) and a country, the user
-        # almost certainly wants trade stats + policy + agreements + DGFT FTP
-        # all at once — not just one slice.
-        # hs_lookup is exempt: user just wants the classification table.
-        if query_type != "hs_lookup":
+        # When we have a confirmed HS code + country, run all agents together.
+        if hs_confirmed and query_type != "hs_lookup":
             if hs_code and country and query_type in ("policy", "sql"):
                 query_type = "combined"
             elif hs_code and query_type == "policy":
                 query_type = "combined"
 
+        # ── Confirmation keywords: user agrees with the HS code shown ──
+        # e.g. "yes", "ok", "correct" after hs_lookup presented candidates.
+        CONFIRMATION_KEYWORDS = [
+            'yes', 'yep', 'yeah', 'yup', 'ok', 'okay', 'sure', 'correct',
+            'confirmed', 'confirm', 'right', 'affirmative', 'proceed',
+            'go ahead', 'that is correct', "that's correct", "that's right",
+            'use that', 'use this', 'that one', 'good', 'perfect', 'great',
+        ]
+        if (hs_code and hs_confirmed and
+                query_type in ("general", "hs_lookup") and
+                not product_name and
+                any(kw in query_lower for kw in CONFIRMATION_KEYWORDS)):
+            query_type = "combined" if country else "combined"
+            print(f"[Router] Confirmation detected → combined for HS {hs_code}")
+
         # ── Post-HS-lookup follow-up upgrade ──
-        # If the user just finished a HS lookup flow and is now asking about
-        # restrictions / export rules / policy — route to combined so the
-        # policy + SQL + agreements agents all fire.
+        # User is asking about restrictions/policy after HS code confirmed in history.
         POLICY_FOLLOWUP_KEYWORDS = [
             'restriction', 'restrict', 'prohibited', 'ban', 'allowed',
             'can i export', 'export rule', 'policy', 'regulation',
             'requirement', 'documentation', 'certificate', 'license',
             'take care', 'should know', 'what do i need', 'tariff',
             'duty', 'compliance', 'condition', 'ste', 'state trading',
+            'detail', 'details', 'information', 'info', 'tell me more',
         ]
-        if hs_code and query_type in ("hs_lookup", "general"):
+        if hs_code and hs_confirmed and query_type in ("hs_lookup", "general"):
             if any(kw in query_lower for kw in POLICY_FOLLOWUP_KEYWORDS):
-                query_type = "combined" if country else "combined"
-                print(f"[Router] Post-hs_lookup upgrade: '{query_type}' for HS {hs_code}")
+                query_type = "combined"
+                print(f"[Router] Follow-up upgrade → combined for HS {hs_code}")
         
         state["query_type"] = query_type
         state["hs_code"] = hs_code
