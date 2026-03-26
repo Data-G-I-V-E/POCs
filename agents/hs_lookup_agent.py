@@ -102,6 +102,28 @@ class HSLookupAgent:
             return "code_level DESC, hs_code"
         return "hs_code"
 
+    # Terms that are user-facing product descriptors but absent from HS tariff descriptions.
+    # Stripping these from the FTS query leaves the core technical subject matter,
+    # which does appear in tariff text (e.g. "flow level" → matches "flow or level of liquids").
+    _USER_SIDE_TERMS = {
+        "sensor", "sensors", "detector", "detectors", "transducer", "transducers",
+        "electronic", "digital", "smart", "industrial", "automated", "automatic",
+        "device", "devices", "unit", "units", "module", "modules",
+        "system", "systems", "equipment", "probe", "probes",
+    }
+
+    def _strip_user_terms(self, query: str) -> str:
+        """
+        Remove user-facing product descriptors that don't appear in HS tariff text,
+        leaving the core technical subject the tariff DOES describe.
+
+        e.g. "electronic flow level sensors" → "flow level"
+             "digital pressure transducers"  → "pressure"
+        """
+        tokens = re.split(r'\s+', query.lower().strip())
+        core = [t for t in tokens if t and t not in self._USER_SIDE_TERMS]
+        return " ".join(core) if core else query
+
     def _extract_keywords(self, query: str) -> List[str]:
         """Split on whitespace/punctuation; keep tokens ≥3 chars (no stop words); deduplicate."""
         STOP = {
@@ -178,8 +200,8 @@ class HSLookupAgent:
             # (shouldn't happen, but guards against HS code format mismatch)
             return reranked if reranked else results
         except Exception as e:
-            print(f"⚠️  HSLookupAgent: LLM rerank failed, using original results: {e}")
-            return results
+            print(f"⚠️  HSLookupAgent: LLM rerank failed, returning no results to avoid false positives: {e}")
+            return []
 
     # ------------------------------------------------------------------
     # Individual strategies — each returns List[Dict] with 'score'
@@ -236,13 +258,21 @@ class HSLookupAgent:
 
         return results
 
+    @staticmethod
+    def _word_boundary_pattern(kw: str) -> str:
+        """Return a PostgreSQL case-insensitive regex pattern matching kw as a whole word."""
+        escaped = re.escape(kw)
+        return f"\\m{escaped}\\M"
+
     def _s_and_ilike(self, cur, keywords: List[str], limit: int) -> List[Dict]:
         if not keywords:
             return []
         cols  = self._cols(cur)
         order = self._order_by_level(cur)
-        conds = " AND ".join(["description ILIKE %s"] * len(keywords))
-        params = [f"%{kw}%" for kw in keywords] + [limit]
+        # Use word-boundary regex (~*) to prevent substring false positives
+        # e.g. 'flow' must not match 'FLOWER' or 'SUNFLOWER'
+        conds = " AND ".join(["description ~* %s"] * len(keywords))
+        params = [self._word_boundary_pattern(kw) for kw in keywords] + [limit]
         cur.execute(
             f"SELECT {cols} FROM hs_master_8_digit WHERE {conds} ORDER BY {order} LIMIT %s",
             params
@@ -254,8 +284,10 @@ class HSLookupAgent:
             return []
         cols  = self._cols(cur)
         order = self._order_by_level(cur)
-        conds = " OR ".join(["description ILIKE %s"] * len(keywords))
-        params = [f"%{kw}%" for kw in keywords] + [limit]
+        # Use word-boundary regex (~*) to prevent substring false positives
+        # e.g. 'flow' must not match 'FLOWER', 'level' must not match 'levelheaded'
+        conds = " OR ".join(["description ~* %s"] * len(keywords))
+        params = [self._word_boundary_pattern(kw) for kw in keywords] + [limit]
         cur.execute(
             f"SELECT {cols} FROM hs_master_8_digit WHERE {conds} ORDER BY {order} LIMIT %s",
             params
@@ -380,8 +412,16 @@ class HSLookupAgent:
             results: List[Dict] = []
             kws = self._extract_keywords(query)
 
+            # Strip user-facing terms ("sensors", "electronic") that don't appear in HS tariff text,
+            # leaving the core subject ("flow level") which FTS CAN match in formal descriptions.
+            # e.g. "electronic flow level sensors" → "flow level" → matches "flow or level of liquids"
+            stripped_query = self._strip_user_terms(query)
+
             # hs_master_8_digit strategies (cascade — stop adding master results when enough)
+            # Try original query first, then stripped query as fallback for user-vocabulary mismatches
             results = _merge(results, self._s_fts(cur, query, limit))
+            if stripped_query != query:
+                results = _merge(results, self._s_fts(cur, stripped_query, limit))
             if len(results) < 3:
                 results = _merge(results, self._s_and_ilike(cur, sorted(kws, key=len, reverse=True)[:3], limit))
             if len(results) < 2:
@@ -392,7 +432,10 @@ class HSLookupAgent:
                 results = _merge(results, self._s_trgm(cur, query, limit))
 
             # Always supplement with itc_hs_products (ITC-specific codes + export policy)
-            results = _merge(results, self._s_itc_products(cur, query, kws, limit))
+            # Use stripped query so "electronic flow level sensors" → "flow level" finds 902610
+            results = _merge(results, self._s_itc_products(cur, stripped_query, kws, limit))
+            if stripped_query != query:
+                results = _merge(results, self._s_itc_products(cur, query, kws, limit))
 
             ranked = _top(results, limit)
             return self._llm_rerank(query, ranked)
