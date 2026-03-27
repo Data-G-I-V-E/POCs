@@ -12,9 +12,9 @@ Multi-strategy retrieval with ranked confidence scores:
 
 Result handling:
   • 0 matches        → needs_clarification=True, type="no_match"   → ask for more detail
-  • 1 confident hit  → returns it directly (no clarification needed)
-  • 2–8 matches      → needs_clarification=True, type="pick_one"   → show table, ask user to pick
-  • >8 matches       → needs_clarification=True, type="too_broad"  → ask for more specific query
+  • 1 confident hit  → needs_clarification=True, type="confirm_one" → confirm with user
+  • 2+ matches       → needs_clarification=True, type="pick_one"   → show ALL relevant results, ask user to pick
+  (LLM reranker already filters irrelevant results before classification)
 """
 
 import psycopg2
@@ -477,10 +477,9 @@ class HSLookupAgent:
           4. Classify result count → set needs_clarification + clarification_type
 
         Clarification types:
-          "no_match"  — 0 results; ask for more detail / alternative name
-          "pick_one"  — 2–8 results; show table, ask user to pick
-          "too_broad" — >8 results; ask for more specific query
-          None        — 1 confident result; no clarification needed
+          "no_match"   — 0 results; ask for more detail / alternative name
+          "confirm_one"— 1 result; confirm with user before proceeding
+          "pick_one"   — 2+ results; show ALL LLM-reranked (relevant) results, ask user to pick
         """
         user_query   = state.get("user_query", "")
         hs_code      = state.get("hs_code")
@@ -577,22 +576,12 @@ class HSLookupAgent:
                 f"I found **one likely match** for **{search_term}**. "
                 "Please confirm this is the correct product before I check export rules."
             )
-        elif 1 < count <= 8:
+        elif count > 1:
             needs_clarification = True
             clarification_type  = "pick_one"
             clarification_message = (
-                f"I found **{count} possible HS codes** for **{search_term}**. "
+                f"I found **{count} relevant HS codes** for **{search_term}**. "
                 "Please confirm which one matches your product:"
-            )
-        else:
-            needs_clarification = True
-            clarification_type  = "too_broad"
-            clarification_message = (
-                f"Your query returned **{count} matching HS codes** — too many to list usefully. "
-                "Please be more specific:\n\n"
-                "- Specific variety or form (e.g. *'fresh garlic'* vs *'dried garlic'*)\n"
-                "- Material composition (e.g. *'cotton t-shirts'* vs *'synthetic t-shirts'*)\n"
-                "- End use or trade category\n"
             )
 
         state["hs_lookup_results"] = {
