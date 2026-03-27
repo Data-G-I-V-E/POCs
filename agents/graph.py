@@ -286,10 +286,14 @@ class ExportAdvisoryGraph:
         result = self.graph.invoke(initial_state)
 
         # Persist or clear pending HS lookup for the next turn.
-        # Keep it when we're still waiting for the user to confirm a match;
-        # clear it once a code is resolved or the user starts a new lookup.
+        # Only keep pending when the graph actually ran hs_lookup this turn
+        # (i.e., still waiting for the user to pick/confirm a match).
+        # If the route was combined/policy/etc., the code was already confirmed
+        # and we must clear the old pending so it doesn't bleed into a new query.
         hs_result = result.get("hs_lookup_results") or {}
-        if (hs_result.get("needs_clarification") and
+        final_query_type = result.get("query_type", "")
+        if (final_query_type == "hs_lookup" and
+                hs_result.get("needs_clarification") and
                 hs_result.get("clarification_type") in ("confirm_one", "pick_one")):
             self.session_hs_pending[session_id] = hs_result
         else:
