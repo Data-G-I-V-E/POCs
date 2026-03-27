@@ -199,7 +199,7 @@ class AnswerSynthesizer:
                         f"NO RESULTS — Search for '{search_term}' returned 0 matches.\n"
                         f"CLARIFICATION NEEDED: {c_msg}"
                     )
-                elif c_type in ("pick_one", "confirm_one"):
+                elif c_type in ("pick_one", "confirm_one", "too_broad"):
                     lines = [
                         f"CLARIFICATION NEEDED ({c_type.upper()}): {c_msg}",
                         "",
@@ -207,22 +207,11 @@ class AnswerSynthesizer:
                         "|---------|---------|-------|-------------|------------|",
                     ]
                     level_label = {1: "Heading", 2: "Subheading", 3: "Tariff line"}
-                    for m in matches[:8]:
+                    for m in matches:
                         lvl   = level_label.get(m.get("code_level", 3), "Code")
                         score = f"{m.get('score', 0):.0%}"
                         desc  = m["description"]  # full description — DB already abbreviates
                         lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {lvl} | {desc} | {score} |")
-                    hs_lookup_summary = "\n".join(lines)
-                elif c_type == "too_broad":
-                    lines = [
-                        f"TOO MANY RESULTS ({hs_data['count']}) — too broad to list. {c_msg}",
-                        "",
-                        "Sample matches (top 5):",
-                        "| HS Code | Chapter | Description |",
-                        "|---------|---------|-------------|",
-                    ]
-                    for m in matches[:5]:
-                        lines.append(f"| {m['hs_code']} | Ch-{m['chapter']} | {m['description']} |")
                     hs_lookup_summary = "\n".join(lines)
                 else:
                     # No clarification needed — single good match (or old-format ambiguous)
