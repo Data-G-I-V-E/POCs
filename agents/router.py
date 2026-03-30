@@ -347,14 +347,33 @@ class QueryRouter:
             or (is_ftp_reference_query and not is_trade_data_request)
         )
         if not hs_code and not _is_new_classification_request:
-            for msg in reversed(state.get("messages", [])[:-1]):
+            # When the user mentions a product name, only reuse a historical HS code
+            # if it was confirmed in the context of the SAME product.
+            # This prevents cross-product bleed (e.g. "flow measuring devices" picking
+            # up 85434000 from a prior cigarettes conversation).
+            pname_words = (
+                [w for w in product_name.lower().split() if len(w) > 3]
+                if product_name else []
+            )
+            history = list(state.get("messages", [])[:-1])
+            for idx, msg in enumerate(reversed(history)):
                 content = msg.content if hasattr(msg, "content") else str(msg)
-                # Match 6-8 digit codes first; also accept 4-5 digit headings from history.
                 m = re.search(r'\b(\d{6,8})\b', content) or re.search(r'\b(\d{4,5})\b', content)
-                if m:
-                    hs_code = self._normalize_hs_code(m.group(1))
-                    hs_confirmed = True  # previously confirmed in conversation
-                    break
+                if not m:
+                    continue
+                if pname_words:
+                    # Build a context window of ±2 messages around where the HS code appeared
+                    orig_idx = len(history) - 1 - idx
+                    window = history[max(0, orig_idx - 2): orig_idx + 3]
+                    window_text = " ".join(
+                        (wm.content if hasattr(wm, "content") else str(wm))
+                        for wm in window
+                    ).lower()
+                    if not any(w in window_text for w in pname_words):
+                        continue  # HS code belongs to a different product — skip
+                hs_code = self._normalize_hs_code(m.group(1))
+                hs_confirmed = True  # previously confirmed in conversation
+                break
 
         # If product description given but still no confirmed HS code → hs_lookup.
         # The hs_lookup agent will search + LLM-rerank and ask user to pick/confirm.

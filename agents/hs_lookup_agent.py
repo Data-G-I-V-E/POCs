@@ -569,7 +569,7 @@ class HSLookupAgent:
                 "- Chapter/heading if known (e.g. *'Chapter 07'*)\n"
                 "- Alternative names or trade names"
             )
-        elif count == 1 and results[0]["score"] >= 0.70:
+        elif count == 1:
             needs_clarification = True   # still ask user to confirm
             clarification_type  = "confirm_one"
             clarification_message = (
